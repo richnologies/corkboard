@@ -1,0 +1,37 @@
+<ion-content class="auth-shell">
+  <div class="auth-card">
+    <h1 class="brand-title">{{ 'auth.joinTitle' | translate }}</h1>
+    <p class="subtitle">{{ 'auth.joinSubtitle' | translate }}</p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <ion-list lines="none">
+        <ion-item>
+          <ion-input [label]="'auth.name' | translate" labelPlacement="stacked" formControlName="displayName" />
+        </ion-item>
+        <ion-item>
+          <ion-input [label]="'auth.email' | translate" labelPlacement="stacked" type="email" formControlName="email" />
+        </ion-item>
+        <ion-item>
+          <ion-input [label]="'auth.password' | translate" labelPlacement="stacked" type="password" formControlName="password" />
+        </ion-item>
+      </ion-list>
+
+      @if (error()) {
+        <ion-text color="danger"><p class="error">{{ error() }}</p></ion-text>
+      }
+
+      <ion-button expand="block" type="submit" [disabled]="loading()">
+        @if (loading()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ 'auth.createAccount' | translate }}
+        }
+      </ion-button>
+    </form>
+
+    <p class="footer-link">
+      {{ 'auth.alreadyHaveAccount' | translate }}
+      <a routerLink="/login">{{ 'auth.signIn' | translate }}</a>
+    </p>
+  </div>
+</ion-content>

@@ -1,0 +1,33 @@
+.subtitle {
+  color: var(--cork-muted);
+  margin: 8px 0 24px;
+}
+
+.error {
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+ion-button {
+  margin-top: 16px;
+  --border-radius: 12px;
+  font-weight: 600;
+}
+
+.footer-link {
+  text-align: center;
+  margin-top: 24px;
+  color: var(--cork-muted);
+  font-size: 14px;
+
+  a {
+    color: var(--cork-terracotta);
+    font-weight: 600;
+    text-decoration: none;
+  }
+}
+
+ion-item {
+  --background: transparent;
+  margin-bottom: 8px;
+}

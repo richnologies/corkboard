@@ -1,0 +1,32 @@
+<div class="map-picker">
+  <div class="map-toolbar">
+    <ion-button fill="outline" size="small" (click)="useCurrentLocation()" [disabled]="loading()">
+      {{ 'item.useMyLocation' | translate }}
+    </ion-button>
+  </div>
+
+  <div #mapContainer class="map-container"></div>
+
+  @if (loading()) {
+    <div class="map-loading"><ion-spinner name="crescent" /></div>
+  }
+
+  <p class="map-hint">{{ 'item.tapMapHint' | translate }}</p>
+
+  @if (suggestions().length) {
+    <p class="suggestions-label">{{ 'item.nearbyPlaces' | translate }}</p>
+    @for (place of suggestions(); track place.displayName) {
+      <ion-item
+        button
+        class="place-suggestion"
+        [class.selected]="selectedKey() === place.latitude + ',' + place.longitude + ',' + place.name"
+        (click)="selectPlace(place)"
+      >
+        <ion-label>
+          <h3>{{ place.name }}</h3>
+          <p>{{ place.displayName }}</p>
+        </ion-label>
+      </ion-item>
+    }
+  }
+</div>

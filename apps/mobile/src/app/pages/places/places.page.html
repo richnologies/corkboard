@@ -1,0 +1,93 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title class="brand-title">{{ 'places.title' | translate }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-searchbar
+      [placeholder]="'places.searchPlaceholder' | translate"
+      debounce="400"
+      (ionInput)="onSearch($event)"
+    />
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <ion-refresher slot="fixed" (ionRefresh)="load($event)">
+    <ion-refresher-content />
+  </ion-refresher>
+
+  <div class="filter-bar">
+    @for (status of statuses; track status) {
+      <ion-chip
+        [color]="activeStatus() === status ? 'primary' : undefined"
+        (click)="setStatus(status)"
+      >
+        {{ 'status.' + status | translate }}
+      </ion-chip>
+    }
+  </div>
+
+  @if (tags().length) {
+    <div class="filter-bar tags-row">
+      @for (t of tags(); track t.tag) {
+        <ion-chip
+          [outline]="activeTag() !== t.tag"
+          [color]="activeTag() === t.tag ? 'tertiary' : undefined"
+          (click)="setTag(t.tag)"
+        >
+          {{ t.tag }} ({{ t.count }})
+        </ion-chip>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading-center"><ion-spinner /></div>
+  } @else if (!items().length) {
+    <div class="empty-state">
+      <ion-icon name="location-outline" />
+      <h3>{{ 'places.emptyTitle' | translate }}</h3>
+      <p>{{ 'places.emptyBody' | translate }}</p>
+      <ion-button (click)="addItem()">{{ 'places.addPlace' | translate }}</ion-button>
+    </div>
+  } @else {
+    @for (item of items(); track item.id) {
+      <ion-card class="item-card" button (click)="openItem(item.id)">
+        <ion-card-content>
+          <div class="card-top">
+            <div class="icon-wrap">
+              <ion-icon [name]="categoryIcons[item.category]" />
+            </div>
+            <div class="card-meta">
+              <h2>{{ item.name }}</h2>
+              <p class="category">{{ 'category.' + item.category | translate }}</p>
+            </div>
+            <span class="status-pill" [class]="item.status">{{ 'status.' + item.status | translate }}</span>
+          </div>
+          @if (item.location?.city) {
+            <p class="location">
+              <ion-icon name="location-outline" />
+              {{ item.location?.city }}{{ item.location?.country ? ', ' + item.location?.country : '' }}
+            </p>
+          }
+          @if (item.source?.referrerName) {
+            <p class="source">{{ 'places.via' | translate }} {{ item.source?.referrerName }}</p>
+          }
+          @if (item.tags.length) {
+            <div class="tags">
+              @for (tag of item.tags.slice(0, 4); track tag) {
+                <ion-chip class="tag-chip">{{ tag }}</ion-chip>
+              }
+            </div>
+          }
+        </ion-card-content>
+      </ion-card>
+    }
+  }
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="addItem()">
+      <ion-icon name="add" />
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

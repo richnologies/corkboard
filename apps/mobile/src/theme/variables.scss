@@ -1,0 +1,52 @@
+:root {
+  --ion-font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --cork-cream: #faf7f2;
+  --cork-surface: #ffffff;
+  --cork-brown: #6b4423;
+  --cork-brown-light: #8b5a2b;
+  --cork-tan: #d4a574;
+  --cork-terracotta: #c45c3e;
+  --cork-ink: #2c2416;
+  --cork-muted: #7a6f63;
+  --cork-border: #ebe4d8;
+  --cork-shadow: 0 4px 24px rgba(44, 36, 22, 0.08);
+
+  --ion-background-color: var(--cork-cream);
+  --ion-text-color: var(--cork-ink);
+  --ion-color-primary: var(--cork-brown-light);
+  --ion-color-primary-rgb: 139, 90, 43;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-shade: #7a4f26;
+  --ion-color-primary-tint: #976b40;
+
+  --ion-color-secondary: var(--cork-tan);
+  --ion-color-secondary-rgb: 212, 165, 116;
+  --ion-color-secondary-contrast: var(--cork-ink);
+
+  --ion-color-tertiary: var(--cork-terracotta);
+  --ion-color-tertiary-rgb: 196, 92, 62;
+  --ion-color-tertiary-contrast: #ffffff;
+
+  --ion-toolbar-background: var(--cork-surface);
+  --ion-toolbar-color: var(--cork-ink);
+  --ion-item-background: var(--cork-surface);
+  --ion-card-background: var(--cork-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cork-cream: #1a1612;
+    --cork-surface: #252019;
+    --cork-ink: #f5f0e8;
+    --cork-muted: #a89b8c;
+    --cork-border: #3d342c;
+    --cork-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+
+    --ion-background-color: var(--cork-cream);
+    --ion-text-color: var(--cork-ink);
+    --ion-toolbar-background: var(--cork-surface);
+    --ion-item-background: var(--cork-surface);
+    --ion-card-background: var(--cork-surface);
+  }
+}

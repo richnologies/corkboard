@@ -1,0 +1,11 @@
+{
+  "name": "mobile",
+  "dependencies": {
+    "@capacitor/android": "../../node_modules/@capacitor/android",
+    "@capacitor/ios": "../../node_modules/@capacitor/ios",
+    "@org/domain": "^0.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

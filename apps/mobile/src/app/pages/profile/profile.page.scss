@@ -1,0 +1,24 @@
+.profile-header {
+  text-align: center;
+  padding: 32px 16px;
+
+  ion-icon {
+    font-size: 72px;
+    color: var(--cork-tan);
+  }
+
+  h2 {
+    margin: 12px 0 4px;
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  p {
+    color: var(--cork-muted);
+    margin: 0;
+  }
+}
+
+ion-button {
+  margin-top: 32px;
+  --border-radius: 12px;
+}

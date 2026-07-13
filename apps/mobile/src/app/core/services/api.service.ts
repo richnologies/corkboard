@@ -1,0 +1,36 @@
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
+
+@Injectable({ providedIn: 'root' })
+export class ApiService {
+  private readonly http = inject(HttpClient);
+  private readonly base = environment.apiUrl;
+
+  get<T>(path: string, params?: Record<string, string | number | boolean | undefined>) {
+    return this.http.get<T>(`${this.base}${path}`, { params: this.toParams(params) });
+  }
+
+  post<T>(path: string, body: unknown) {
+    return this.http.post<T>(`${this.base}${path}`, body);
+  }
+
+  patch<T>(path: string, body: unknown) {
+    return this.http.patch<T>(`${this.base}${path}`, body);
+  }
+
+  delete<T>(path: string) {
+    return this.http.delete<T>(`${this.base}${path}`);
+  }
+
+  private toParams(params?: Record<string, string | number | boolean | undefined>) {
+    let httpParams = new HttpParams();
+    if (!params) return httpParams;
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== '') {
+        httpParams = httpParams.set(key, String(value));
+      }
+    }
+    return httpParams;
+  }
+}

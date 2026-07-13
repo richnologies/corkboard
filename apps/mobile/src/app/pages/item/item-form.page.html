@@ -1,0 +1,141 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/places" />
+    </ion-buttons>
+    <ion-title>{{ (id === 'new' || !id ? 'item.addTitle' : 'item.editTitle') | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  @if (loading()) {
+    <div class="loading-center"><ion-spinner /></div>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <ion-list lines="none">
+        <ion-item>
+          <ion-input [label]="'item.name' | translate" labelPlacement="stacked" formControlName="name" />
+        </ion-item>
+
+        <ion-item>
+          <ion-select [label]="'item.category' | translate" labelPlacement="stacked" formControlName="category">
+            @for (c of categories; track c) {
+              <ion-select-option [value]="c">{{ 'category.' + c | translate }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+
+        <ion-item>
+          <ion-select [label]="'item.status' | translate" labelPlacement="stacked" formControlName="status">
+            @for (s of statuses; track s) {
+              <ion-select-option [value]="s">{{ 'status.' + s | translate }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+      </ion-list>
+
+      <p class="section-label">{{ 'item.locationSection' | translate }}</p>
+
+      <ion-segment [value]="locationMode()" (ionChange)="onLocationModeChange($event)" class="location-segment">
+        <ion-segment-button value="link">
+          <ion-label>{{ 'item.locationModeLink' | translate }}</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="map">
+          <ion-label>{{ 'item.locationModeMap' | translate }}</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+
+      @if (locationMode() === 'link') {
+        <ion-item class="link-input">
+          <ion-input
+            [label]="'item.pasteGoogleMapsLink' | translate"
+            labelPlacement="stacked"
+            [value]="googleMapsLink()"
+            (ionInput)="googleMapsLink.set($any($event.target).value)"
+            placeholder="https://maps.app.goo.gl/..."
+          />
+        </ion-item>
+        <ion-button
+          expand="block"
+          fill="outline"
+          (click)="resolveGoogleLink()"
+          [disabled]="resolvingLink() || !googleMapsLink().trim()"
+        >
+          @if (resolvingLink()) {
+            <ion-spinner name="crescent" />
+          } @else {
+            {{ 'item.resolveLink' | translate }}
+          }
+        </ion-button>
+        @if (linkError()) {
+          <ion-note color="danger" class="link-error">{{ 'item.linkResolveError' | translate }}</ion-note>
+        }
+      } @else {
+        <app-map-picker
+          [latitude]="hasMapCoords() ? mapLat() : undefined"
+          [longitude]="hasMapCoords() ? mapLng() : undefined"
+          (placeSelected)="onMapPlaceSelected($event)"
+        />
+      }
+
+      @if (selectedPlace(); as place) {
+        <div class="selected-place-row">
+          <ion-chip color="primary" class="selected-place">
+            {{ place.displayName }}
+          </ion-chip>
+          <ion-button fill="clear" size="small" color="medium" (click)="clearLocation()">
+            {{ 'item.clearLocation' | translate }}
+          </ion-button>
+        </div>
+        @if (hasMapCoords()) {
+          <p class="section-label">{{ 'item.locationPreview' | translate }}</p>
+          <app-osm-map [latitude]="mapLat()" [longitude]="mapLng()" />
+        }
+      } @else if (locationMode() === 'link') {
+        <p class="location-hint">{{ 'item.linkLocationHint' | translate }}</p>
+      }
+
+      <ion-list lines="none">
+        <ion-item>
+          <ion-input [label]="'item.city' | translate" labelPlacement="stacked" formControlName="city" />
+        </ion-item>
+        <ion-item>
+          <ion-input [label]="'item.country' | translate" labelPlacement="stacked" formControlName="country" />
+        </ion-item>
+        <ion-item>
+          <ion-input
+            [label]="'item.tags' | translate"
+            labelPlacement="stacked"
+            [value]="tagsInput()"
+            (ionInput)="tagsInput.set($any($event.target).value)"
+          />
+        </ion-item>
+      </ion-list>
+
+      <p class="section-label">{{ 'item.provenance' | translate }}</p>
+      <ion-list lines="none">
+        <ion-item>
+          <ion-select [label]="'item.source' | translate" labelPlacement="stacked" formControlName="sourceType">
+            @for (s of sourceTypes; track s) {
+              <ion-select-option [value]="s">{{ 'source.' + s | translate }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-input [label]="'item.recommendedBy' | translate" labelPlacement="stacked" formControlName="referrerName" />
+        </ion-item>
+        <ion-item>
+          <ion-input [label]="'item.sourceNotes' | translate" labelPlacement="stacked" formControlName="sourceNotes" />
+        </ion-item>
+      </ion-list>
+
+      <ion-button expand="block" type="submit" [disabled]="saving()" class="save-btn">
+        @if (saving()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ 'item.save' | translate }}
+        }
+      </ion-button>
+    </form>
+  }
+</ion-content>

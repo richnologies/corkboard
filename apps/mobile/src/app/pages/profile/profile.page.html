@@ -1,0 +1,39 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title class="brand-title">{{ 'profile.title' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <div class="profile-header">
+    <ion-icon name="person-circle-outline" />
+    <h2>{{ auth.user()?.displayName }}</h2>
+    <p>{{ auth.user()?.email }}</p>
+  </div>
+
+  <ion-list lines="none">
+    <ion-item>
+      <ion-label>
+        <h3>{{ 'profile.memberSince' | translate }}</h3>
+        <p>{{ auth.user()?.createdAt | date: 'mediumDate' : '' : i18n.angularLocale() }}</p>
+      </ion-label>
+    </ion-item>
+    <ion-item>
+      <ion-select
+        [label]="'profile.language' | translate"
+        labelPlacement="stacked"
+        [value]="i18n.locale()"
+        (ionChange)="onLocaleChange($event)"
+      >
+        @for (locale of i18n.supportedLocales; track locale) {
+          <ion-select-option [value]="locale">{{ i18n.localeLabel(locale) }}</ion-select-option>
+        }
+      </ion-select>
+    </ion-item>
+  </ion-list>
+
+  <ion-button expand="block" fill="outline" color="medium" (click)="logout()">
+    <ion-icon slot="start" name="log-out-outline" />
+    {{ 'auth.signOut' | translate }}
+  </ion-button>
+</ion-content>

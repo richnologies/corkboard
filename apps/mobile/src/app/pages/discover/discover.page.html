@@ -1,0 +1,85 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title class="brand-title">{{ 'discover.title' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <section class="hero">
+    <ion-icon name="sparkles-outline" />
+    <h2>{{ 'discover.heroTitle' | translate }}</h2>
+    <p>{{ 'discover.heroBody' | translate }}</p>
+  </section>
+
+  <div class="presets">
+    <ion-button expand="block" (click)="dateNight()">
+      <ion-icon slot="start" name="sparkles-outline" />
+      {{ 'discover.dateTonight' | translate }}
+    </ion-button>
+    <ion-button expand="block" fill="outline" (click)="weekendGetaway()">
+      {{ 'discover.weekendGetaway' | translate }}
+    </ion-button>
+  </div>
+
+  <ion-list lines="none" class="options">
+    <ion-item>
+      <ion-toggle [checked]="useLocation()" (ionChange)="useLocation.set($event.detail.checked)" labelPlacement="start">
+        {{ 'discover.useLocation' | translate }}
+      </ion-toggle>
+    </ion-item>
+    <ion-item>
+      <ion-label>{{ 'discover.radius' | translate: { km: radiusKm() } }}</ion-label>
+      <ion-range min="2" max="50" [value]="radiusKm()" (ionChange)="radiusKm.set($any($event.detail).value)" />
+    </ion-item>
+  </ion-list>
+
+  @if (tags().length) {
+    <p class="section-label">{{ 'discover.filterByTags' | translate }}</p>
+    <div class="filter-bar">
+      @for (t of tags(); track t.tag) {
+        <ion-chip
+          [color]="selectedTags().includes(t.tag) ? 'tertiary' : undefined"
+          (click)="toggleTag(t.tag)"
+        >
+          {{ t.tag }}
+        </ion-chip>
+      }
+    </div>
+  }
+
+  <ion-button expand="block" class="suggest-btn" (click)="suggest()" [disabled]="loading()">
+    @if (loading()) {
+      <ion-spinner name="crescent" />
+    } @else {
+      {{ 'discover.findSuggestions' | translate }}
+    }
+  </ion-button>
+
+  @if (results().length) {
+    <h3 class="results-title">{{ 'discover.topPicks' | translate }}</h3>
+    @for (rec of results(); track rec.item.id) {
+      <ion-card class="item-card" button (click)="openItem(rec.item.id)">
+        <ion-card-content>
+          <div class="rec-row">
+            <div class="score-badge">{{ rec.latestOverallRating?.toFixed(1) ?? ('common.dash' | translate) }}</div>
+            <div class="rec-meta">
+              <h2>{{ rec.item.name }}</h2>
+              <p>{{ 'category.' + rec.item.category | translate }}</p>
+              @if (rec.distanceKm != null) {
+                <p class="distance">
+                  <ion-icon name="navigate-outline" />
+                  {{ 'discover.distanceKm' | translate: { km: rec.distanceKm.toFixed(1) } }}
+                </p>
+              }
+              <div class="reasons">
+                @for (reason of rec.matchReasons.slice(0, 3); track reason) {
+                  <ion-chip class="tag-chip">{{ reason }}</ion-chip>
+                }
+              </div>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+  }
+</ion-content>

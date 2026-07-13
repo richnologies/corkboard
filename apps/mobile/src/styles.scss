@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
+
+body {
+  font-family: var(--ion-font-family);
+}
+
+.brand-title {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-shell {
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --padding-top: 8px;
+  --padding-bottom: 24px;
+}
+
+.item-card {
+  margin: 0 0 12px;
+  border-radius: 16px;
+  box-shadow: var(--cork-shadow);
+  border: 1px solid var(--cork-border);
+  overflow: hidden;
+
+  ion-card-content {
+    padding: 16px;
+  }
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+
+  &.wishlist { background: #e8f0fe; color: #1a56db; }
+  &.planned { background: #fef3c7; color: #b45309; }
+  &.visited { background: #e0e7ff; color: #4338ca; }
+  &.favorite { background: #fce7f3; color: #be185d; }
+  &.rejected { background: #f3f4f6; color: #6b7280; }
+}
+
+.tag-chip {
+  --background: var(--cork-border);
+  --color: var(--cork-ink);
+  font-size: 12px;
+  height: 28px;
+  margin: 2px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--cork-muted);
+
+  ion-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    color: var(--cork-ink);
+    margin-bottom: 8px;
+  }
+}
+
+.auth-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 24px;
+  background: linear-gradient(165deg, var(--cork-cream) 0%, #f0e6d8 100%);
+}
+
+.auth-card {
+  background: var(--cork-surface);
+  border-radius: 24px;
+  padding: 32px 24px;
+  box-shadow: var(--cork-shadow);
+  border: 1px solid var(--cork-border);
+}
+
+.score-badge {
+  background: linear-gradient(135deg, var(--cork-brown-light), var(--cork-terracotta));
+  color: white;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 18px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0 12px;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
+
+  ion-chip {
+    flex-shrink: 0;
+  }
+}
