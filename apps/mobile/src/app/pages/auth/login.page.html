@@ -1,5 +1,12 @@
 <ion-content class="auth-shell">
   <div class="auth-card">
+    <img
+      class="brand-mark"
+      src="apple-touch-icon.png"
+      width="72"
+      height="72"
+      alt=""
+    />
     <h1 class="brand-title">{{ 'app.name' | translate }}</h1>
     <p class="subtitle">{{ 'app.tagline' | translate }}</p>
 
@@ -37,10 +44,5 @@
         }
       </ion-button>
     </form>
-
-    <p class="footer-link">
-      {{ 'auth.newHere' | translate }}
-      <a routerLink="/register">{{ 'auth.createAccount' | translate }}</a>
-    </p>
   </div>
 </ion-content>

@@ -34,7 +34,7 @@ export interface Person {
   ownerId: string;
   name: string;
   type: PersonType;
-  /** Future: link to a registered Corkboard user */
+  /** Future: link to a registered Malviviendo user */
   linkedUserId?: string;
   sourceCount: number;
   visitCount: number;
@@ -85,7 +85,7 @@ export interface Experience {
   itemId: string;
   authorId: string;
   visibility: ExperienceVisibility;
-  /** Corkboard users who joined this visit — can view even on private experiences */
+  /** Malviviendo users who joined this visit — can view even on private experiences */
   participantUserIds: string[];
   visitedAt: string;
   rating?: StructuredRating;

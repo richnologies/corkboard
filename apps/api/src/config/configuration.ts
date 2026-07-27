@@ -18,7 +18,7 @@ export default registerAs('app', () => ({
     .map((origin) => origin.trim()),
   nominatimUserAgent:
     process.env['NOMINATIM_USER_AGENT'] ??
-    'Corkboard/1.0 (personal recommendations app)',
+    'Malviviendo/1.0 (personal recommendations app)',
   google: {
     mapsApiKey: process.env['GOOGLE_MAPS_API_KEY'],
   },

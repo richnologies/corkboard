@@ -32,8 +32,8 @@ export class EmailService {
   async sendWelcome(to: string, displayName: string): Promise<void> {
     await this.send(
       to,
-      'Welcome to Corkboard',
-      `Hi ${displayName},\n\nWelcome to Corkboard — your personal knowledge base for recommendations and experiences.`,
+      'Welcome to Malviviendo',
+      `Hi ${displayName},\n\nWelcome to Malviviendo — your personal knowledge base for recommendations and experiences.`,
     );
   }
 
@@ -45,7 +45,7 @@ export class EmailService {
     await this.send(
       to,
       `${ownerName} shared a recommendation with you`,
-      `${ownerName} shared "${itemName}" with you on Corkboard.`,
+      `${ownerName} shared "${itemName}" with you on Malviviendo.`,
     );
   }
 

@@ -34,7 +34,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'search_google_places',
       description:
-        'Search Google Maps when a place is not saved in Corkboard yet. If exactly one match is returned, use it directly with ensure_place_from_google — do not ask the user to confirm.',
+        'Search Google Maps when a place is not saved in Malviviendo yet. If exactly one match is returned, use it directly with ensure_place_from_google — do not ask the user to confirm.',
       parameters: {
         type: 'object',
         properties: {
@@ -52,7 +52,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'ensure_place_from_google',
       description:
-        'Save a Google Maps place to Corkboard without logging a visit. Use when you need the place on file to answer a question (last visit, history, etc.) or before get_last_visit when search_places found nothing.',
+        'Save a Google Maps place to Malviviendo without logging a visit. Use when you need the place on file to answer a question (last visit, history, etc.) or before get_last_visit when search_places found nothing.',
       parameters: {
         type: 'object',
         properties: {
@@ -70,7 +70,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'create_place_and_log_visit',
       description:
-        'Create a Google Maps place in Corkboard AND log a new visit. Only when the user is reporting a new visit. Requires visitedAt, overallRating, and companions (use [] if alone). Ask the user for anything missing before calling.',
+        'Create a Google Maps place in Malviviendo AND log a new visit. Only when the user is reporting a new visit. Requires visitedAt, overallRating, and companions (use [] if alone). Ask the user for anything missing before calling.',
       parameters: {
         type: 'object',
         properties: {

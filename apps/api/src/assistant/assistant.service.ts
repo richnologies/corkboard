@@ -94,7 +94,7 @@ export class AssistantService {
       {
         role: 'system',
         content: [
-          'You are Corkboard, a friendly personal food & places assistant.',
+          'You are Malviviendo, a friendly personal food & places assistant.',
           'The user tracks restaurants and places they visit, with ratings, companions, and photos.',
           `Today is ${today}. Interpret relative dates like "yesterday" accordingly.`,
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
@@ -814,7 +814,7 @@ export class AssistantService {
       if (placeId.startsWith('ChIJ') || placeId.startsWith('osm:')) {
         return {
           error:
-            'That id is a map reference, not a saved Corkboard place. Use ensure_place_from_google first.',
+            'That id is a map reference, not a saved Malviviendo place. Use ensure_place_from_google first.',
         };
       }
       try {

@@ -50,7 +50,7 @@ export class PlacesService {
   constructor(config: ConfigService) {
     this.userAgent =
       config.get<string>('app.nominatimUserAgent') ??
-      'Corkboard/1.0 (personal recommendations app)';
+      'Malviviendo/1.0 (personal recommendations app)';
     this.googleMapsApiKey = config.get<string>('app.google.mapsApiKey');
   }
 

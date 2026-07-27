@@ -1,4 +1,18 @@
+.brand-mark {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(74, 10, 31, 0.35);
+}
+
+.brand-title {
+  text-align: center;
+}
+
 .subtitle {
+  text-align: center;
   color: var(--cork-muted);
   margin: 8px 0 24px;
   line-height: 1.5;
@@ -14,19 +28,6 @@ ion-button {
   --border-radius: 14px;
   font-weight: 600;
   --box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
-}
-
-.footer-link {
-  text-align: center;
-  margin-top: 24px;
-  color: var(--cork-muted);
-  font-size: 14px;
-
-  a {
-    color: var(--ion-color-primary);
-    font-weight: 700;
-    text-decoration: none;
-  }
 }
 
 ion-item {

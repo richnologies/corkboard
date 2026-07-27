@@ -1,6 +1,6 @@
 export const es = {
   app: {
-    name: 'Corkboard',
+    name: 'Malviviendo',
     tagline: 'Tu mapa personal de recomendaciones',
   },
   tabs: {
@@ -17,7 +17,7 @@ export const es = {
     signIn: 'Iniciar sesión',
     signOut: 'Cerrar sesión',
     createAccount: 'Crear cuenta',
-    joinTitle: 'Únete a Corkboard',
+    joinTitle: 'Únete a Malviviendo',
     joinSubtitle: 'Empieza a construir tu memoria de recomendaciones',
     newHere: '¿Eres nuevo?',
     alreadyHaveAccount: '¿Ya tienes cuenta?',
@@ -75,10 +75,10 @@ export const es = {
   },
   chat: {
     title: 'Chat',
-    emptyTitle: 'Pregunta lo que quieras a Corkboard',
+    emptyTitle: 'Pregunta lo que quieras a Malviviendo',
     emptyBody:
       'Consulta visitas pasadas, registra nuevas con fotos o pregunta con quién fuiste.',
-    inputPlaceholder: 'Escribe a Corkboard…',
+    inputPlaceholder: 'Escribe a Malviviendo…',
     exampleLastVisit: '¿Cuándo fui por última vez a Nobu?',
     exampleNewVisit: 'Ayer fui a Dishoom Covent Garden con Alice.',
     exampleWhoWith: '¿Con quién fui la última vez a Barrafina?',
