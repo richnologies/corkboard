@@ -7,7 +7,8 @@ import configuration from './configuration.js';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: ['.env.local', '.env'],
+      // /config/.env is the Docker bind-mount used in production
+      envFilePath: ['.env.local', '.env', '/config/.env'],
     }),
   ],
 })
