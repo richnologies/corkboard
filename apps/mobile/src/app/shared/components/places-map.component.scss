@@ -1,0 +1,15 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 360px;
+}
+
+.map-container {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--cork-border);
+  box-shadow: var(--cork-shadow);
+}

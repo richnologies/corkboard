@@ -1,0 +1,82 @@
+.tag-picker {
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cork-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 20px 0 8px;
+}
+
+.suggestions-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cork-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 14px 0 8px;
+}
+
+.empty-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--cork-muted);
+  line-height: 1.4;
+}
+
+.selected-tags,
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-item {
+  margin-top: 4px;
+}
+
+.tag-pill {
+  margin: 0;
+  font-weight: 600;
+  height: 32px;
+
+  ion-icon {
+    font-size: 16px;
+    margin-left: 4px;
+    opacity: 0.75;
+  }
+
+  &.selected {
+    --background: var(--ion-color-primary);
+    --color: #fff;
+  }
+
+  &.suggestion {
+    --background: var(--cork-surface);
+    border: 1px solid var(--cork-border);
+
+    .count {
+      margin-left: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--cork-muted);
+      background: var(--cork-primary-soft);
+      border-radius: 999px;
+      padding: 2px 6px;
+    }
+  }
+}
+
+.create-tag-btn {
+  margin: 8px 0 4px;
+  --border-radius: 12px;
+}
+
+.loading-row {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+}

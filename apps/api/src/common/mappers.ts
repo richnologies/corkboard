@@ -1,14 +1,12 @@
 import {
   Experience,
-  Experience as ExperienceEntity,
-  ExperiencePhoto,
   Item,
   ItemHistory,
   ItemShare,
+  LatestVisitSummary,
   StructuredRating,
 } from '@org/domain';
 import { ItemDocument } from '../items/item.schema.js';
-import { ExperienceDocument } from '../experiences/experience.schema.js';
 import { ItemShareDocument } from '../sharing/share.schema.js';
 
 export function mapItem(doc: ItemDocument): Item {
@@ -22,30 +20,32 @@ export function mapItem(doc: ItemDocument): Item {
     links: doc.links ?? [],
     photoKeys: doc.photoKeys ?? [],
     tags: doc.tags ?? [],
-    source: doc.source ?? undefined,
+    source: doc.source
+      ? {
+          type: doc.source.type,
+          referrerName: doc.source.referrerName,
+          referrerPersonId: doc.source.referrerPersonId
+            ? String(doc.source.referrerPersonId)
+            : undefined,
+          url: doc.source.url,
+          notes: doc.source.notes,
+        }
+      : undefined,
+    rejectionReason: doc.rejectionReason ?? undefined,
     createdAt: doc.createdAt?.toISOString() ?? new Date().toISOString(),
     updatedAt: doc.updatedAt?.toISOString() ?? new Date().toISOString(),
   };
 }
 
-export function mapExperience(doc: ExperienceDocument): ExperienceEntity {
+export function mapLatestVisitSummary(input: {
+  visitedAt: Date;
+  rating?: StructuredRating;
+  notes?: string;
+}): LatestVisitSummary {
   return {
-    id: doc.id,
-    itemId: String(doc.itemId),
-    userId: String(doc.userId),
-    visitedAt: doc.visitedAt.toISOString(),
-    rating: doc.rating as StructuredRating | undefined,
-    notes: doc.notes,
-    wouldReturn: doc.wouldReturn,
-    companions: doc.companions?.length ? doc.companions : undefined,
-    photos: doc.photos?.length
-      ? (doc.photos.map((p) => ({
-          key: p.key,
-          notes: p.notes,
-        })) satisfies ExperiencePhoto[])
-      : undefined,
-    createdAt: doc.createdAt?.toISOString() ?? new Date().toISOString(),
-    updatedAt: doc.updatedAt?.toISOString() ?? new Date().toISOString(),
+    visitedAt: input.visitedAt.toISOString(),
+    rating: input.rating,
+    notes: input.notes,
   };
 }
 
@@ -62,7 +62,7 @@ export function mapShare(doc: ItemShareDocument): ItemShare {
 
 export function buildItemHistory(
   item: Item,
-  experiences: ExperienceEntity[],
+  experiences: Experience[],
 ): ItemHistory {
   const sorted = [...experiences].sort(
     (a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime(),

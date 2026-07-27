@@ -2,17 +2,40 @@
   <ion-toolbar>
     <ion-title class="brand-title">{{ 'places.title' | translate }}</ion-title>
   </ion-toolbar>
-  <ion-toolbar>
-    <ion-searchbar
-      [placeholder]="'places.searchPlaceholder' | translate"
-      debounce="400"
-      (ionInput)="onSearch($event)"
-    />
+  <ion-toolbar class="search-toolbar">
+    <div class="search-row">
+      <ion-searchbar
+        class="search-input"
+        [placeholder]="'places.searchPlaceholder' | translate"
+        debounce="400"
+        (ionInput)="onSearch($event)"
+      />
+      <div class="view-toggle">
+        <ion-button
+          fill="clear"
+          size="small"
+          [class.active]="viewMode() === 'list'"
+          (click)="setViewMode('list')"
+          [attr.aria-label]="'places.viewList' | translate"
+        >
+          <ion-icon slot="icon-only" name="list-outline" />
+        </ion-button>
+        <ion-button
+          fill="clear"
+          size="small"
+          [class.active]="viewMode() === 'map'"
+          (click)="setViewMode('map')"
+          [attr.aria-label]="'places.viewMap' | translate"
+        >
+          <ion-icon slot="icon-only" name="map-outline" />
+        </ion-button>
+      </div>
+    </div>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="page-shell">
-  <ion-refresher slot="fixed" (ionRefresh)="load($event)">
+<ion-content class="page-shell" [class.map-mode]="viewMode() === 'map'">
+  <ion-refresher slot="fixed" (ionRefresh)="load({ target: $event.target })">
     <ion-refresher-content />
   </ion-refresher>
 
@@ -50,6 +73,88 @@
       <p>{{ 'places.emptyBody' | translate }}</p>
       <ion-button (click)="addItem()">{{ 'places.addPlace' | translate }}</ion-button>
     </div>
+  } @else if (viewMode() === 'map') {
+    @if (mappableItems().length) {
+      <div class="map-shell">
+        <app-places-map
+          [items]="mappableItems()"
+          [selectedItemId]="previewItem()?.id ?? null"
+          (pinClicked)="onPinClicked($event)"
+          (backgroundClicked)="closePreview()"
+        />
+        @if (previewItem(); as item) {
+          <ion-card class="map-preview-card">
+            <ion-card-content>
+              <ion-button
+                fill="clear"
+                size="small"
+                class="preview-close"
+                (click)="closePreview()"
+                [attr.aria-label]="'common.cancel' | translate"
+              >
+                <ion-icon slot="icon-only" name="close-outline" />
+              </ion-button>
+              <div class="card-top">
+                <div class="icon-wrap">
+                  <ion-icon [name]="categoryIcons[item.category]" />
+                </div>
+                <div class="card-meta">
+                  <h2>{{ item.name }}</h2>
+                  <p class="category">{{ 'category.' + item.category | translate }}</p>
+                </div>
+                <span class="status-pill" [class]="item.status">{{ 'status.' + item.status | translate }}</span>
+              </div>
+              @if (hasLatestVisit(item)) {
+                <div class="last-visit">
+                  <ion-icon name="calendar-outline" />
+                  <span class="visit-date">
+                    {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
+                  </span>
+                  @if (latestVisitScore(item); as score) {
+                    <span class="visit-score">{{ score.toFixed(1) }}/10</span>
+                  }
+                  @if (latestVisitNotes(item); as notes) {
+                    <span class="visit-notes">{{ notes }}</span>
+                  }
+                </div>
+              }
+              @if (item.location?.city || item.location?.address) {
+                <p class="location">
+                  <ion-icon name="location-outline" />
+                  {{ item.location?.address || item.location?.city }}{{ item.location?.country ? ', ' + item.location?.country : '' }}
+                </p>
+              }
+              @if (item.source?.referrerName) {
+                <p class="source">{{ 'places.via' | translate }} {{ item.source?.referrerName }}</p>
+              }
+              @if (item.tags.length) {
+                <div class="tags">
+                  @for (tag of item.tags.slice(0, 3); track tag) {
+                    <ion-chip class="tag-chip" [class.favorite]="tag === favoriteTag">
+                      {{ tag === favoriteTag ? ('tag.favorite' | translate) : tag }}
+                    </ion-chip>
+                  }
+                </div>
+              }
+              <ion-button expand="block" class="preview-action" (click)="viewPreviewDetails()">
+                {{ 'places.viewDetails' | translate }}
+              </ion-button>
+            </ion-card-content>
+          </ion-card>
+        }
+      </div>
+      @if (hiddenMapCount() > 0 && !previewItem()) {
+        <p class="map-footnote">
+          {{ 'places.mapHiddenCount' | translate: { count: hiddenMapCount() } }}
+        </p>
+      }
+    } @else {
+      <div class="empty-state map-empty">
+        <ion-icon name="map-outline" />
+        <h3>{{ 'places.mapEmptyTitle' | translate }}</h3>
+        <p>{{ 'places.mapEmptyBody' | translate }}</p>
+      </div>
+    }
   } @else {
     @for (item of items(); track item.id) {
       <ion-card class="item-card" button (click)="openItem(item.id)">
@@ -59,11 +164,30 @@
               <ion-icon [name]="categoryIcons[item.category]" />
             </div>
             <div class="card-meta">
-              <h2>{{ item.name }}</h2>
+              <div class="name-row">
+                <h2>{{ item.name }}</h2>
+                @if (isFavorite(item)) {
+                  <ion-icon name="heart" class="favorite-heart" [attr.aria-label]="'tag.favorite' | translate" />
+                }
+              </div>
               <p class="category">{{ 'category.' + item.category | translate }}</p>
             </div>
             <span class="status-pill" [class]="item.status">{{ 'status.' + item.status | translate }}</span>
           </div>
+          @if (hasLatestVisit(item)) {
+            <div class="last-visit">
+              <ion-icon name="calendar-outline" />
+              <span class="visit-date">
+                {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
+              </span>
+              @if (latestVisitScore(item); as score) {
+                <span class="visit-score">{{ score.toFixed(1) }}/10</span>
+              }
+              @if (latestVisitNotes(item); as notes) {
+                <span class="visit-notes">{{ notes }}</span>
+              }
+            </div>
+          }
           @if (item.location?.city) {
             <p class="location">
               <ion-icon name="location-outline" />
@@ -73,9 +197,9 @@
           @if (item.source?.referrerName) {
             <p class="source">{{ 'places.via' | translate }} {{ item.source?.referrerName }}</p>
           }
-          @if (item.tags.length) {
+          @if (displayTags(item).length) {
             <div class="tags">
-              @for (tag of item.tags.slice(0, 4); track tag) {
+              @for (tag of displayTags(item); track tag) {
                 <ion-chip class="tag-chip">{{ tag }}</ion-chip>
               }
             </div>

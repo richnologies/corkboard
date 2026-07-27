@@ -3,6 +3,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
+import { AlertController } from '@ionic/angular/standalone';
 import {
   IonBackButton,
   IonButton,
@@ -24,7 +25,12 @@ import {
   IonTextarea,
   IonToggle,
   IonRange,
+  IonSelect,
+  IonSelectOption,
+  IonReorder,
+  IonReorderGroup,
 } from '@ionic/angular/standalone';
+import type { ItemReorderEventDetail } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import {
   createOutline,
@@ -36,14 +42,23 @@ import {
   closeCircleOutline,
   peopleOutline,
   pencilOutline,
+  trashOutline,
 } from 'ionicons/icons';
-import { Experience, ItemHistory } from '@org/domain';
+import { Experience, ExperiencePhoto, ExperienceVisibility, ItemHistory, ItemStatus, categoryHasLocation } from '@org/domain';
+import { AuthService } from '../../core/services/auth.service';
 import { ExperiencePayload, ItemsService } from '../../core/services/items.service';
 import { MediaService } from '../../core/services/media.service';
+import { PhotoUrlService } from '../../core/services/photo-url.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { googleMapsUrl, openStreetMapUrl, streetViewUrl } from '../../shared/maps';
 import { OsmMapComponent } from '../../shared/components/osm-map.component';
+import { PersonPickerComponent } from '../../shared/components/person-picker.component';
+import {
+  LightboxPhoto,
+  PhotoLightboxComponent,
+} from '../../shared/components/photo-lightbox.component';
+import { ImagePrepareError, prepareImageFile } from '../../shared/utils/image-resize';
 
 addIcons({
   createOutline,
@@ -55,20 +70,24 @@ addIcons({
   closeCircleOutline,
   peopleOutline,
   pencilOutline,
+  trashOutline,
 });
 
 interface VisitPhotoExisting {
   id: string;
   kind: 'existing';
   key: string;
+  thumbKey?: string;
   notes: string;
 }
 
 interface VisitPhotoNew {
   id: string;
   kind: 'new';
-  file: File;
+  full: File;
+  thumb: File;
   previewUrl: string;
+  fullPreviewUrl: string;
   notes: string;
 }
 
@@ -102,6 +121,12 @@ type VisitPhotoEntry = VisitPhotoExisting | VisitPhotoNew;
     IonTextarea,
     IonToggle,
     IonRange,
+    IonSelect,
+    IonSelectOption,
+    IonReorder,
+    IonReorderGroup,
+    PersonPickerComponent,
+    PhotoLightboxComponent,
   ],
   templateUrl: './item-detail.page.html',
   styleUrl: './item-detail.page.scss',
@@ -111,16 +136,30 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
   private readonly router = inject(Router);
   private readonly itemsService = inject(ItemsService);
   private readonly mediaService = inject(MediaService);
+  private readonly photoUrlService = inject(PhotoUrlService);
+  private readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
+  private readonly alertController = inject(AlertController);
   readonly i18n = inject(I18nService);
+
+  readonly rejectedStatus = ItemStatus.Rejected;
 
   readonly history = signal<ItemHistory | null>(null);
   readonly loading = signal(true);
   readonly visitModalOpen = signal(false);
   readonly savingVisit = signal(false);
+  readonly deletingVisit = signal(false);
   readonly editingExperienceId = signal<string | null>(null);
   readonly visitPhotoEntries = signal<VisitPhotoEntry[]>([]);
-  readonly photoUrls = signal<Record<string, string>>({});
+  readonly processingPhotos = signal(false);
+  readonly photoSelectionError = signal<string | null>(null);
+  readonly lightboxOpen = signal(false);
+  readonly lightboxPhotos = signal<LightboxPhoto[]>([]);
+  readonly lightboxIndex = signal(0);
+  readonly companionPersonIds = signal<string[]>([]);
+  readonly visitVisibility = signal(ExperienceVisibility.Shared);
+
+  readonly visitVisibilities = Object.values(ExperienceVisibility);
 
   readonly visitForm = this.fb.nonNullable.group({
     visitedAt: [new Date().toISOString().slice(0, 10), Validators.required],
@@ -130,7 +169,6 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     valueForMoney: [8],
     overall: [8],
     notes: [''],
-    companions: [''],
     wouldReturn: [true],
   });
 
@@ -170,6 +208,8 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
   openVisitModal() {
     this.editingExperienceId.set(null);
+    this.companionPersonIds.set([]);
+    this.visitVisibility.set(ExperienceVisibility.Shared);
     this.resetVisitForm();
     this.visitModalOpen.set(true);
   }
@@ -183,13 +223,12 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         id: photo.key,
         kind: 'existing' as const,
         key: photo.key,
+        thumbKey: photo.thumbKey,
         notes: photo.notes ?? '',
       })),
     );
 
-    for (const photo of exp.photos ?? []) {
-      this.ensurePhotoUrl(photo.key);
-    }
+    this.ensurePhotosLoaded(exp.photos ?? []);
 
     this.visitForm.reset({
       visitedAt: exp.visitedAt.slice(0, 10),
@@ -199,9 +238,10 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
       valueForMoney: exp.rating?.valueForMoney ?? 8,
       overall: exp.rating?.overall ?? 8,
       notes: exp.notes ?? '',
-      companions: exp.companions?.join(', ') ?? '',
       wouldReturn: exp.wouldReturn ?? true,
     });
+    this.companionPersonIds.set(exp.companionPersonIds ?? []);
+    this.visitVisibility.set(exp.visibility ?? ExperienceVisibility.Shared);
 
     this.visitModalOpen.set(true);
   }
@@ -210,30 +250,53 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     this.revokeNewPhotoPreviews();
     this.visitPhotoEntries.set([]);
     this.editingExperienceId.set(null);
+    this.photoSelectionError.set(null);
     this.visitModalOpen.set(false);
   }
 
-  onPhotosSelected(event: Event) {
+  async onPhotosSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     const files = input.files;
     if (!files?.length) return;
 
-    const drafts: VisitPhotoNew[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
-      drafts.push({
-        id: crypto.randomUUID(),
-        kind: 'new',
-        file,
-        previewUrl: URL.createObjectURL(file),
-        notes: '',
-      });
-    }
+    this.photoSelectionError.set(null);
+    this.processingPhotos.set(true);
 
-    if (drafts.length) {
-      this.visitPhotoEntries.update((current) => [...current, ...drafts]);
+    const drafts: VisitPhotoNew[] = [];
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        try {
+          const { full, thumb } = await prepareImageFile(file);
+          drafts.push({
+            id: crypto.randomUUID(),
+            kind: 'new',
+            full,
+            thumb,
+            previewUrl: URL.createObjectURL(thumb),
+            fullPreviewUrl: URL.createObjectURL(full),
+            notes: '',
+          });
+        } catch (error) {
+          if (error instanceof ImagePrepareError) {
+            if (error.code === 'IMAGE_TOO_LARGE') {
+              this.photoSelectionError.set(this.i18n.t('item.photoTooLarge'));
+            } else {
+              this.photoSelectionError.set(this.i18n.t('item.photoProcessingFailed'));
+            }
+          } else {
+            this.photoSelectionError.set(this.i18n.t('item.photoProcessingFailed'));
+          }
+        }
+      }
+
+      if (drafts.length) {
+        this.visitPhotoEntries.update((current) => [...current, ...drafts]);
+      }
+    } finally {
+      this.processingPhotos.set(false);
+      input.value = '';
     }
-    input.value = '';
   }
 
   updatePhotoNotes(id: string, notes: string) {
@@ -247,14 +310,28 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
       const removed = photos.find((p) => p.id === id);
       if (removed?.kind === 'new') {
         URL.revokeObjectURL(removed.previewUrl);
+        URL.revokeObjectURL(removed.fullPreviewUrl);
       }
       return photos.filter((p) => p.id !== id);
     });
   }
 
+  onPhotoReorder(event: CustomEvent<ItemReorderEventDetail>) {
+    const entries = [...this.visitPhotoEntries()];
+    const [moved] = entries.splice(event.detail.from, 1);
+    entries.splice(event.detail.to, 0, moved);
+    this.visitPhotoEntries.set(entries);
+    event.detail.complete(entries);
+  }
+
   visitPhotoPreview(entry: VisitPhotoEntry): string | undefined {
     if (entry.kind === 'new') return entry.previewUrl;
-    return this.photoUrls()[entry.key];
+    return this.photoDisplayUrl(entry);
+  }
+
+  openVisitPhotoPreview(index: number) {
+    const photos = this.visitPhotoEntries().map((entry) => this.toLightboxPhoto(entry));
+    this.openLightbox(photos, index);
   }
 
   async saveVisit() {
@@ -264,20 +341,23 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     const v = this.visitForm.getRawValue();
 
     try {
-      const photos: { key: string; notes?: string }[] = [];
+      const photos: { key: string; thumbKey?: string; notes?: string }[] = [];
       for (const entry of this.visitPhotoEntries()) {
         if (entry.kind === 'existing') {
-          photos.push({ key: entry.key, notes: entry.notes.trim() || undefined });
+          photos.push({
+            key: entry.key,
+            thumbKey: entry.thumbKey,
+            notes: entry.notes.trim() || undefined,
+          });
         } else {
-          const key = await this.mediaService.uploadFile(entry.file);
-          photos.push({ key, notes: entry.notes.trim() || undefined });
+          const uploaded = await this.mediaService.uploadPhoto(entry.full, entry.thumb);
+          photos.push({
+            key: uploaded.key,
+            thumbKey: uploaded.thumbKey,
+            notes: entry.notes.trim() || undefined,
+          });
         }
       }
-
-      const companions = v.companions
-        .split(',')
-        .map((name) => name.trim())
-        .filter(Boolean);
 
       const payload: ExperiencePayload = {
         visitedAt: new Date(v.visitedAt).toISOString(),
@@ -290,7 +370,8 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         },
         notes: v.notes.trim() || undefined,
         wouldReturn: v.wouldReturn,
-        companions,
+        companionPersonIds: this.companionPersonIds(),
+        visibility: this.visitVisibility(),
         photos,
       };
 
@@ -312,13 +393,88 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     }
   }
 
-  photoUrl(key: string): string | undefined {
-    return this.photoUrls()[key];
+  photoDisplayUrl(photo: Pick<ExperiencePhoto, 'key' | 'thumbKey'>): string | undefined {
+    return this.photoUrlService.url(photo.thumbKey ?? photo.key);
+  }
+
+  openExperiencePhotoViewer(photos: ExperiencePhoto[], index: number) {
+    this.openLightbox(
+      photos.map((photo) => ({
+        key: photo.key,
+        thumbKey: photo.thumbKey,
+        notes: photo.notes,
+      })),
+      index,
+    );
+  }
+
+  closeLightbox() {
+    this.lightboxOpen.set(false);
   }
 
   companionsLabel(exp: Experience): string | null {
     if (!exp.companions?.length) return null;
     return exp.companions.join(', ');
+  }
+
+  canEditVisit(exp: Experience): boolean {
+    return exp.canEdit ?? exp.authorId === this.auth.user()?.id;
+  }
+
+  async confirmDeleteVisit(exp: Experience) {
+    if (!this.canEditVisit(exp)) return;
+
+    const alert = await this.alertController.create({
+      header: this.i18n.t('item.deleteVisitTitle'),
+      message: this.i18n.t('item.deleteVisitConfirm'),
+      buttons: [
+        {
+          text: this.i18n.t('common.cancel'),
+          role: 'cancel',
+        },
+        {
+          text: this.i18n.t('item.deleteVisit'),
+          role: 'destructive',
+          handler: () => {
+            this.deleteVisit(exp);
+          },
+        },
+      ],
+    });
+
+    await alert.present();
+  }
+
+  confirmDeleteVisitForEditing() {
+    const experienceId = this.editingExperienceId();
+    if (!experienceId) return;
+
+    const experience = this.history()?.experiences.find(
+      (entry) => entry.id === experienceId,
+    );
+    if (!experience) return;
+
+    void this.confirmDeleteVisit(experience);
+  }
+
+  deleteVisit(exp: Experience) {
+    if (!this.canEditVisit(exp) || this.deletingVisit()) return;
+
+    this.deletingVisit.set(true);
+    this.itemsService.deleteExperience(exp.id).subscribe({
+      next: () => {
+        this.deletingVisit.set(false);
+        if (this.editingExperienceId() === exp.id) {
+          this.closeVisitModal();
+        }
+        this.loadHistory();
+      },
+      error: () => this.deletingVisit.set(false),
+    });
+  }
+
+  showsAuthor(exp: Experience): boolean {
+    return !!exp.authorDisplayName && exp.authorId !== this.auth.user()?.id;
   }
 
   openGoogleMaps() {
@@ -360,6 +516,11 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     }
   }
 
+  showsLocation(): boolean {
+    const category = this.history()?.item.category;
+    return category != null && categoryHasLocation(category);
+  }
+
   hasLocation(): boolean {
     const loc = this.history()?.item.location;
     return loc?.latitude != null && loc?.longitude != null;
@@ -390,37 +551,51 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
       valueForMoney: 8,
       overall: 8,
       notes: '',
-      companions: '',
       wouldReturn: true,
     });
+    this.companionPersonIds.set([]);
+    this.visitVisibility.set(ExperienceVisibility.Shared);
   }
 
   private loadPhotoUrls(experiences: Experience[]) {
-    const keys = new Set<string>();
     for (const exp of experiences) {
-      for (const photo of exp.photos ?? []) {
-        keys.add(photo.key);
-      }
-    }
-
-    for (const key of keys) {
-      this.ensurePhotoUrl(key);
+      this.ensurePhotosLoaded(exp.photos ?? []);
     }
   }
 
-  private ensurePhotoUrl(key: string) {
-    if (this.photoUrls()[key]) return;
-    this.mediaService.getViewUrl(key).subscribe({
-      next: ({ url }) => {
-        this.photoUrls.update((current) => ({ ...current, [key]: url }));
-      },
-    });
+  private ensurePhotosLoaded(photos: ExperiencePhoto[]) {
+    this.photoUrlService.ensureMany(
+      photos.flatMap((photo) => [photo.thumbKey ?? photo.key, photo.key]),
+    );
+  }
+
+  private openLightbox(photos: LightboxPhoto[], index: number) {
+    this.lightboxPhotos.set(photos);
+    this.lightboxIndex.set(index);
+    this.lightboxOpen.set(true);
+    this.photoUrlService.ensureMany(photos.map((photo) => photo.key));
+  }
+
+  private toLightboxPhoto(entry: VisitPhotoEntry): LightboxPhoto {
+    if (entry.kind === 'new') {
+      return {
+        blobUrl: entry.previewUrl,
+        fullBlobUrl: entry.fullPreviewUrl,
+        notes: entry.notes,
+      };
+    }
+    return {
+      key: entry.key,
+      thumbKey: entry.thumbKey,
+      notes: entry.notes,
+    };
   }
 
   private revokeNewPhotoPreviews() {
     for (const photo of this.visitPhotoEntries()) {
       if (photo.kind === 'new') {
         URL.revokeObjectURL(photo.previewUrl);
+        URL.revokeObjectURL(photo.fullPreviewUrl);
       }
     }
   }

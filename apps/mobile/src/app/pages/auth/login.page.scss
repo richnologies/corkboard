@@ -1,6 +1,7 @@
 .subtitle {
   color: var(--cork-muted);
   margin: 8px 0 24px;
+  line-height: 1.5;
 }
 
 .error {
@@ -10,8 +11,9 @@
 
 ion-button {
   margin-top: 16px;
-  --border-radius: 12px;
+  --border-radius: 14px;
   font-weight: 600;
+  --box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
 }
 
 .footer-link {
@@ -21,8 +23,8 @@ ion-button {
   font-size: 14px;
 
   a {
-    color: var(--cork-terracotta);
-    font-weight: 600;
+    color: var(--ion-color-primary);
+    font-weight: 700;
     text-decoration: none;
   }
 }

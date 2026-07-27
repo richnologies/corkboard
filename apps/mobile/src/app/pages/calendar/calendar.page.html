@@ -1,0 +1,112 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title class="brand-title">{{ 'calendar.title' | translate }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar class="month-toolbar">
+    <ion-buttons slot="start">
+      <ion-button fill="clear" (click)="prevMonth()" [attr.aria-label]="'calendar.prevMonth' | translate">
+        <ion-icon slot="icon-only" name="chevron-back-outline" />
+      </ion-button>
+    </ion-buttons>
+    <ion-title class="month-label">{{ monthLabel() }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" (click)="nextMonth()" [attr.aria-label]="'calendar.nextMonth' | translate">
+        <ion-icon slot="icon-only" name="chevron-forward-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <ion-refresher slot="fixed" (ionRefresh)="load({ target: $event.target })">
+    <ion-refresher-content />
+  </ion-refresher>
+
+  @if (loading()) {
+    <div class="loading-wrap">
+      <ion-spinner name="crescent" />
+    </div>
+  } @else {
+    <section class="calendar-card">
+      <div class="weekday-row">
+        @for (label of weekdayLabels(); track label) {
+          <span class="weekday">{{ label }}</span>
+        }
+      </div>
+
+      <div class="day-grid">
+        @for (cell of monthGrid(); track cell.key) {
+          <button
+            type="button"
+            class="day-cell"
+            [class.outside]="!cell.inMonth"
+            [class.today]="isToday(cell.key)"
+            [class.selected]="isSelected(cell.key)"
+            [class.has-visits]="cell.visitCount > 0"
+            (click)="selectDay(cell.key)"
+          >
+            <span class="day-number">{{ cell.date.getDate() }}</span>
+            @if (cell.visitCount > 0) {
+              <span class="visit-dots" [attr.aria-label]="'calendar.visitCount' | translate: { count: cell.visitCount }">
+                @for (dot of [1, 2, 3].slice(0, cell.visitCount > 3 ? 3 : cell.visitCount); track dot) {
+                  <span class="dot"></span>
+                }
+                @if (cell.visitCount > 3) {
+                  <span class="more">+</span>
+                }
+              </span>
+            }
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="day-detail">
+      @if (selectedDateKey()) {
+        <h2 class="section-title">{{ selectedDateLabel() }}</h2>
+      }
+
+      @if (!selectedVisits().length) {
+        <p class="empty-day">{{ 'calendar.noVisitsDay' | translate }}</p>
+      } @else {
+        @for (visit of selectedVisits(); track visit.id) {
+          <ion-card class="visit-card" button (click)="openPlace(visit.itemId)">
+            <ion-card-content>
+              <div class="visit-header">
+                <div class="visit-title">
+                  <ion-icon name="location-outline" />
+                  <h3>{{ visit.itemName }}</h3>
+                </div>
+                @if (visit.rating?.overall != null) {
+                  <span class="score">{{ visit.rating!.overall }}/10</span>
+                }
+              </div>
+
+              @if (visit.authorDisplayName) {
+                <p class="visit-meta">{{ 'item.visitBy' | translate: { name: visit.authorDisplayName } }}</p>
+              }
+
+              @if (visit.companions?.length) {
+                <p class="visit-meta companions">
+                  <ion-icon name="people-outline" />
+                  {{ visit.companions!.join(', ') }}
+                </p>
+              }
+
+              @if (visit.notes) {
+                <p class="visit-notes">{{ visit.notes }}</p>
+              }
+
+              @if (visit.photoCount > 0) {
+                <p class="visit-meta photos">
+                  <ion-icon name="images-outline" />
+                  {{ 'calendar.photoCount' | translate: { count: visit.photoCount } }}
+                </p>
+              }
+            </ion-card-content>
+          </ion-card>
+        }
+      }
+    </section>
+  }
+</ion-content>

@@ -20,6 +20,7 @@ import {
   IonSegment,
   IonSegmentButton,
   IonNote,
+  IonToggle,
 } from '@ionic/angular/standalone';
 import { ItemsService } from '../../core/services/items.service';
 import { PlacesService, PlaceSearchResult } from '../../core/services/places.service';
@@ -27,10 +28,18 @@ import {
   ItemCategory,
   ItemStatus,
   SourceType,
+  categoryHasLocation,
+  FAVORITE_TAG,
+  addFavoriteTag,
+  hasFavoriteTag,
+  removeFavoriteTag,
+  tagsWithoutFavorite,
 } from '@org/domain';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { OsmMapComponent } from '../../shared/components/osm-map.component';
 import { MapPickerComponent } from '../../shared/components/map-picker.component';
+import { TagPickerComponent } from '../../shared/components/tag-picker.component';
+import { PersonPickerComponent } from '../../shared/components/person-picker.component';
 import { googleMapsUrl } from '../../shared/maps';
 
 type LocationMode = 'link' | 'map';
@@ -61,6 +70,9 @@ type LocationMode = 'link' | 'map';
     IonSegment,
     IonSegmentButton,
     IonNote,
+    IonToggle,
+    TagPickerComponent,
+    PersonPickerComponent,
   ],
   templateUrl: './item-form.page.html',
   styleUrl: './item-form.page.scss',
@@ -77,13 +89,16 @@ export class ItemFormPage implements OnInit {
   readonly resolvingLink = signal(false);
   readonly linkError = signal(false);
   readonly selectedPlace = signal<PlaceSearchResult | null>(null);
-  readonly tagsInput = signal('');
+  readonly selectedTags = signal<string[]>([]);
+  readonly referrerPersonIds = signal<string[]>([]);
+  readonly isFavorite = signal(false);
   readonly googleMapsLink = signal('');
-  readonly locationMode = signal<LocationMode>('map');
+  readonly locationMode = signal<LocationMode>('link');
 
   readonly categories = Object.values(ItemCategory);
   readonly statuses = Object.values(ItemStatus);
   readonly sourceTypes = Object.values(SourceType);
+  readonly favoriteTag = FAVORITE_TAG;
 
   private itemId: string | null = null;
   get id() { return this.itemId; }
@@ -92,14 +107,35 @@ export class ItemFormPage implements OnInit {
     name: ['', Validators.required],
     category: [ItemCategory.Restaurant, Validators.required],
     status: [ItemStatus.Wishlist, Validators.required],
+    rejectionReason: [''],
     sourceType: [SourceType.Friend],
-    referrerName: [''],
     sourceNotes: [''],
     city: [''],
     country: [''],
   });
 
+  showsLocation(): boolean {
+    return categoryHasLocation(this.form.controls.category.value);
+  }
+
+  showsRejectionReason(): boolean {
+    return this.form.controls.status.value === ItemStatus.Rejected;
+  }
+
   ngOnInit() {
+    this.form.controls.category.valueChanges.subscribe((category) => {
+      if (category && !categoryHasLocation(category)) {
+        this.clearLocation();
+        this.form.patchValue({ city: '', country: '' });
+      }
+    });
+
+    this.form.controls.status.valueChanges.subscribe((status) => {
+      if (status !== ItemStatus.Rejected) {
+        this.form.patchValue({ rejectionReason: '' });
+      }
+    });
+
     this.itemId = this.route.snapshot.paramMap.get('id');
     if (this.itemId && this.itemId !== 'new') {
       this.loading.set(true);
@@ -109,18 +145,24 @@ export class ItemFormPage implements OnInit {
             name: item.name,
             category: item.category,
             status: item.status,
+            rejectionReason: item.rejectionReason ?? '',
             sourceType: item.source?.type ?? SourceType.Other,
-            referrerName: item.source?.referrerName ?? '',
             sourceNotes: item.source?.notes ?? '',
             city: item.location?.city ?? '',
             country: item.location?.country ?? '',
           });
-          this.tagsInput.set(item.tags.join(', '));
+          this.referrerPersonIds.set(
+            item.source?.referrerPersonId ? [item.source.referrerPersonId] : [],
+          );
+          this.isFavorite.set(hasFavoriteTag(item.tags));
+          this.selectedTags.set(tagsWithoutFavorite(item.tags));
 
           const loc = item.location;
           if (loc?.googleMapsUrl) {
             this.googleMapsLink.set(loc.googleMapsUrl);
             this.locationMode.set('link');
+          } else if (loc?.latitude != null && loc?.longitude != null) {
+            this.locationMode.set('map');
           }
 
           if (loc?.latitude != null && loc?.longitude != null) {
@@ -223,33 +265,38 @@ export class ItemFormPage implements OnInit {
     this.saving.set(true);
     const v = this.form.getRawValue();
     const place = this.selectedPlace();
-    const tags = this.tagsInput()
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const normalizedTags = this.isFavorite()
+      ? addFavoriteTag(this.selectedTags())
+      : removeFavoriteTag(this.selectedTags());
 
     const payload = {
       name: v.name,
       category: v.category,
       status: v.status,
-      tags,
-      location: place
-        ? {
-            city: place.city ?? v.city,
-            country: place.country ?? v.country,
-            latitude: place.latitude || undefined,
-            longitude: place.longitude || undefined,
-            address: place.displayName,
-            googlePlaceId: place.googlePlaceId,
-            googleMapsUrl: place.googleMapsUrl,
-            placeId: place.googlePlaceId,
-          }
-        : v.city || v.country
-          ? { city: v.city, country: v.country }
+      rejectionReason:
+        v.status === ItemStatus.Rejected
+          ? v.rejectionReason.trim() || undefined
           : undefined,
+      tags: normalizedTags,
+      location: categoryHasLocation(v.category)
+        ? place
+          ? {
+              city: place.city ?? v.city,
+              country: place.country ?? v.country,
+              latitude: place.latitude || undefined,
+              longitude: place.longitude || undefined,
+              address: place.displayName,
+              googlePlaceId: place.googlePlaceId,
+              googleMapsUrl: place.googleMapsUrl,
+              placeId: place.googlePlaceId,
+            }
+          : v.city || v.country
+            ? { city: v.city, country: v.country }
+            : undefined
+        : undefined,
       source: {
         type: v.sourceType,
-        referrerName: v.referrerName || undefined,
+        referrerPersonId: this.referrerPersonIds()[0] || undefined,
         notes: v.sourceNotes || undefined,
       },
     };

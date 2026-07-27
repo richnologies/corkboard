@@ -1,0 +1,82 @@
+<div class="person-picker">
+  <p class="section-label">{{ labelKey() | translate }}</p>
+
+  @if (personIds().length) {
+    <div class="selected-people">
+      @for (id of personIds(); track id) {
+        <ion-chip class="person-pill selected" (click)="removePerson(id)">
+          <ion-label>{{ personName(id) }}</ion-label>
+          @if (personType(id); as type) {
+            <span class="type-badge">{{ 'personType.' + type | translate }}</span>
+          }
+          <ion-icon name="close-circle" />
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ emptyHintKey() | translate }}</p>
+  }
+
+  <ion-item class="search-item">
+    <ion-input
+      [placeholder]="'people.searchPlaceholder' | translate"
+      [value]="query()"
+      (ionInput)="onQueryInput($event)"
+      (keydown.enter)="addFromQuery($event)"
+      clearInput
+    />
+  </ion-item>
+
+  @if (canCreateNew()) {
+    <div class="create-row">
+      <ion-select
+        [label]="'people.newPersonType' | translate"
+        labelPlacement="stacked"
+        [value]="newPersonType()"
+        (ionChange)="newPersonType.set($any($event.detail).value)"
+        interface="popover"
+      >
+        @for (type of personTypes; track type) {
+          <ion-select-option [value]="type">{{ 'personType.' + type | translate }}</ion-select-option>
+        }
+      </ion-select>
+      <ion-button
+        expand="block"
+        fill="outline"
+        size="small"
+        class="create-person-btn"
+        (click)="addFromQuery()"
+        [disabled]="creating()"
+      >
+        @if (creating()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          <ion-icon slot="start" name="add-outline" />
+          {{ 'people.addPerson' | translate: { name: query().trim() } }}
+        }
+      </ion-button>
+    </div>
+  }
+
+  <p class="suggestions-label">{{ libraryLabelKey() | translate }}</p>
+
+  @if (loading()) {
+    <div class="loading-row"><ion-spinner name="crescent" /></div>
+  } @else if (filteredSuggestions().length) {
+    <div class="suggestions">
+      @for (person of filteredSuggestions(); track person.id) {
+        <ion-chip
+          class="person-pill suggestion"
+          [outline]="true"
+          (click)="togglePerson(person)"
+        >
+          <ion-label>{{ person.name }}</ion-label>
+          <span class="type-badge">{{ 'personType.' + person.type | translate }}</span>
+          <span class="count">{{ person.sourceCount + person.visitCount }}</span>
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ 'people.pickerNoMatches' | translate }}</p>
+  }
+</div>

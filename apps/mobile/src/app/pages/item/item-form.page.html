@@ -32,8 +32,20 @@
             }
           </ion-select>
         </ion-item>
+
+        @if (showsRejectionReason()) {
+          <ion-item>
+            <ion-input
+              [label]="'item.rejectionReason' | translate"
+              labelPlacement="stacked"
+              formControlName="rejectionReason"
+              [placeholder]="'item.rejectionReasonPlaceholder' | translate"
+            />
+          </ion-item>
+        }
       </ion-list>
 
+      @if (showsLocation()) {
       <p class="section-label">{{ 'item.locationSection' | translate }}</p>
 
       <ion-segment [value]="locationMode()" (ionChange)="onLocationModeChange($event)" class="location-segment">
@@ -102,15 +114,25 @@
         <ion-item>
           <ion-input [label]="'item.country' | translate" labelPlacement="stacked" formControlName="country" />
         </ion-item>
+      </ion-list>
+      }
+
+      <ion-list lines="none">
         <ion-item>
-          <ion-input
-            [label]="'item.tags' | translate"
-            labelPlacement="stacked"
-            [value]="tagsInput()"
-            (ionInput)="tagsInput.set($any($event.target).value)"
-          />
+          <ion-toggle
+            [checked]="isFavorite()"
+            (ionChange)="isFavorite.set($any($event.detail).checked)"
+            labelPlacement="start"
+          >
+            {{ 'item.markFavorite' | translate }}
+          </ion-toggle>
         </ion-item>
       </ion-list>
+
+      <app-tag-picker
+        [tags]="selectedTags()"
+        (tagsChange)="selectedTags.set($event)"
+      />
 
       <p class="section-label">{{ 'item.provenance' | translate }}</p>
       <ion-list lines="none">
@@ -121,9 +143,11 @@
             }
           </ion-select>
         </ion-item>
-        <ion-item>
-          <ion-input [label]="'item.recommendedBy' | translate" labelPlacement="stacked" formControlName="referrerName" />
-        </ion-item>
+        <app-person-picker
+          [multiple]="false"
+          [personIds]="referrerPersonIds()"
+          (personIdsChange)="referrerPersonIds.set($event)"
+        />
         <ion-item>
           <ion-input [label]="'item.sourceNotes' | translate" labelPlacement="stacked" formControlName="sourceNotes" />
         </ion-item>

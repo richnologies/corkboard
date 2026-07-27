@@ -38,6 +38,11 @@ export const routes: Routes = [
       import('./pages/item/item-detail.page').then((m) => m.ItemDetailPage),
   },
   {
+    path: 'people',
+    redirectTo: 'tabs/people',
+    pathMatch: 'full',
+  },
+  {
     path: '',
     redirectTo: 'tabs/places',
     pathMatch: 'full',

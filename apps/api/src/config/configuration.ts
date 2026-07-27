@@ -19,4 +19,13 @@ export default registerAs('app', () => ({
   nominatimUserAgent:
     process.env['NOMINATIM_USER_AGENT'] ??
     'Corkboard/1.0 (personal recommendations app)',
+  google: {
+    mapsApiKey: process.env['GOOGLE_MAPS_API_KEY'],
+  },
+  openai: {
+    apiKey: process.env['OPENAI_API_KEY'],
+    model: process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+    embeddingModel:
+      process.env['OPENAI_EMBEDDING_MODEL'] ?? 'text-embedding-3-small',
+  },
 }));

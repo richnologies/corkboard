@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiService } from './api.service';
-import { Item, ItemHistory, Experience, ItemCategory, ItemStatus, SourceType } from '@org/domain';
+import { Item, ItemHistory, Experience, ItemCategory, ItemStatus, SourceType, ExperienceVisibility } from '@org/domain';
 
 export interface ItemFilters {
   status?: ItemStatus;
@@ -8,13 +8,14 @@ export interface ItemFilters {
   sourceType?: SourceType;
   referrerName?: string;
   tag?: string;
-  city?: string;
+  q?: string;
 }
 
 export interface CreateItemPayload {
   name: string;
   category: ItemCategory;
   status?: ItemStatus;
+  rejectionReason?: string;
   location?: {
     address?: string;
     city?: string;
@@ -28,6 +29,7 @@ export interface CreateItemPayload {
   source?: {
     type: SourceType;
     referrerName?: string;
+    referrerPersonId?: string;
     url?: string;
     notes?: string;
   };
@@ -69,6 +71,10 @@ export class ItemsService {
     return this.api.patch<Experience>(`/experiences/${experienceId}`, payload);
   }
 
+  deleteExperience(experienceId: string) {
+    return this.api.delete(`/experiences/${experienceId}`);
+  }
+
   listExperiences(itemId: string) {
     return this.api.get<Experience[]>(`/items/${itemId}/experiences`);
   }
@@ -86,5 +92,8 @@ export interface ExperiencePayload {
   notes?: string;
   wouldReturn?: boolean;
   companions?: string[];
-  photos?: { key: string; notes?: string }[];
+  companionPersonIds?: string[];
+  visibility?: ExperienceVisibility;
+  participantUserIds?: string[];
+  photos?: { key: string; thumbKey?: string; notes?: string }[];
 }

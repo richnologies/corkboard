@@ -6,7 +6,9 @@
     "start": "nx run-many -t serve -p api,mobile --parallel=2",
     "start:api": "nx serve api",
     "start:mobile": "nx serve mobile",
-    "build:mobile": "nx build mobile"
+    "build:mobile": "nx build mobile",
+    "build:app": "nx build mobile",
+    "s3:cors": "node scripts/configure-s3-cors.mjs"
   },
   "private": true,
   "devDependencies": {

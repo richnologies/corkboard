@@ -42,6 +42,9 @@ export class SourceEmbed {
   @Prop()
   referrerName?: string;
 
+  @Prop({ type: Types.ObjectId })
+  referrerPersonId?: Types.ObjectId;
+
   @Prop()
   url?: string;
 
@@ -82,10 +85,13 @@ export class Item {
 
   @Prop({ type: SourceEmbed })
   source?: SourceEmbed;
+
+  @Prop({ trim: true })
+  rejectionReason?: string;
 }
 
 export const ItemSchema = SchemaFactory.createForClass(Item);
 ItemSchema.index({ ownerId: 1, status: 1 });
 ItemSchema.index({ ownerId: 1, 'source.type': 1 });
-ItemSchema.index({ ownerId: 1, 'source.referrerName': 1 });
+ItemSchema.index({ ownerId: 1, 'source.referrerPersonId': 1 });
 ItemSchema.index({ tags: 1 });

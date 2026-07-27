@@ -27,3 +27,11 @@ export function osmEmbedUrl(lat: number, lng: number, zoom = 15): string {
   const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
   return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat}%2C${lng}`;
 }
+
+export function hasMapLocation(item: {
+  location?: { latitude?: number; longitude?: number };
+}): boolean {
+  const lat = item.location?.latitude;
+  const lng = item.location?.longitude;
+  return lat != null && lng != null && lat !== 0 && lng !== 0;
+}

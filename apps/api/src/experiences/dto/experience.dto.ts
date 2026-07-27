@@ -2,16 +2,22 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ExperienceVisibility } from '@org/domain';
 import { RatingDto } from '../../common/dto/rating.dto.js';
 
 export class ExperiencePhotoDto {
   @IsString()
   key!: string;
+
+  @IsOptional()
+  @IsString()
+  thumbKey?: string;
 
   @IsOptional()
   @IsString()
@@ -36,9 +42,23 @@ export class CreateExperienceDto {
   wouldReturn?: boolean;
 
   @IsOptional()
+  @IsEnum(ExperienceVisibility)
+  visibility?: ExperienceVisibility;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  participantUserIds?: string[];
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   companions?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  companionPersonIds?: string[];
 
   @IsOptional()
   @IsArray()
@@ -66,9 +86,23 @@ export class UpdateExperienceDto {
   wouldReturn?: boolean;
 
   @IsOptional()
+  @IsEnum(ExperienceVisibility)
+  visibility?: ExperienceVisibility;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  participantUserIds?: string[];
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   companions?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  companionPersonIds?: string[];
 
   @IsOptional()
   @IsArray()

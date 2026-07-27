@@ -9,12 +9,14 @@ import {
 import { addIcons } from 'ionicons';
 import {
   mapOutline,
+  calendarOutline,
   sparklesOutline,
+  peopleOutline,
   personOutline,
 } from 'ionicons/icons';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
 
-addIcons({ mapOutline, sparklesOutline, personOutline });
+addIcons({ mapOutline, calendarOutline, sparklesOutline, peopleOutline, personOutline });
 
 @Component({
   selector: 'app-tabs',

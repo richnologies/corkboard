@@ -11,7 +11,6 @@ export enum ItemStatus {
   Wishlist = 'wishlist',
   Planned = 'planned',
   Visited = 'visited',
-  Favorite = 'favorite',
   Rejected = 'rejected',
 }
 
@@ -30,4 +29,18 @@ export enum SourceType {
 export enum SharePermission {
   View = 'view',
   Edit = 'edit',
+}
+
+export enum ExperienceVisibility {
+  Private = 'private',
+  /** Visible to anyone with access to the parent item */
+  Shared = 'shared',
+}
+
+export enum PersonType {
+  Friend = 'friend',
+  Family = 'family',
+  Pareja = 'pareja',
+  Colleague = 'colleague',
+  Other = 'other',
 }

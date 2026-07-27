@@ -6,20 +6,45 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ExperiencesService } from './experiences.service.js';
+import { ExperienceSearchService } from './experience-search.service.js';
 import {
   CreateExperienceDto,
   UpdateExperienceDto,
 } from './dto/experience.dto.js';
+import { ExperienceSearchQueryDto } from './dto/experience-search.dto.js';
+import { ExperienceCalendarQueryDto } from './dto/experience-calendar.dto.js';
 import { CurrentUser, AuthUser } from '../auth/current-user.decorator.js';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
 export class ExperiencesController {
-  constructor(private readonly experiencesService: ExperiencesService) {}
+  constructor(
+    private readonly experiencesService: ExperiencesService,
+    private readonly experienceSearchService: ExperienceSearchService,
+  ) {}
+
+  @Get('experiences/search')
+  search(@CurrentUser() user: AuthUser, @Query() query: ExperienceSearchQueryDto) {
+    const limit = Math.min(parseInt(query.limit ?? '8', 10) || 8, 20);
+    return this.experienceSearchService.search(user.userId, query.q, limit);
+  }
+
+  @Get('experiences/calendar')
+  calendar(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ExperienceCalendarQueryDto,
+  ) {
+    return this.experiencesService.findForCalendar(
+      user.userId,
+      query.from,
+      query.to,
+    );
+  }
 
   @Post('items/:itemId/experiences')
   create(

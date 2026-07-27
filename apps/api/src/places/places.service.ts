@@ -1,9 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ItemCategory } from '@org/domain';
 import {
   buildGoogleMapsUrl,
   resolveGoogleMapsInput,
 } from './google-maps-url.parser.js';
+import {
+  GooglePlaceRecord,
+  googlePlaceResourceName,
+  inferCategoryFromTypes,
+  mapGooglePlace,
+} from './google-places.js';
 
 export interface PlaceSearchResult {
   name: string;
@@ -16,6 +23,8 @@ export interface PlaceSearchResult {
   googleMapsUrl: string;
   osmUrl: string;
   streetViewUrl: string;
+  category?: ItemCategory;
+  source?: 'google' | 'openstreetmap';
 }
 
 interface NominatimResult {
@@ -36,11 +45,99 @@ interface NominatimResult {
 export class PlacesService {
   private readonly logger = new Logger(PlacesService.name);
   private readonly userAgent: string;
+  private readonly googleMapsApiKey?: string;
 
   constructor(config: ConfigService) {
     this.userAgent =
       config.get<string>('app.nominatimUserAgent') ??
       'Corkboard/1.0 (personal recommendations app)';
+    this.googleMapsApiKey = config.get<string>('app.google.mapsApiKey');
+  }
+
+  async searchMapPlaces(query: string, limit = 5): Promise<PlaceSearchResult[]> {
+    if (this.googleMapsApiKey) {
+      try {
+        const googleResults = await this.searchGooglePlaces(query, limit);
+        if (googleResults.length) return googleResults;
+      } catch (error) {
+        this.logger.warn(
+          `Google Maps search failed, falling back to OpenStreetMap: ${error}`,
+        );
+      }
+    }
+
+    return (await this.search(query, limit)).map((place) => ({
+      ...place,
+      source: 'openstreetmap' as const,
+      category: ItemCategory.Other,
+    }));
+  }
+
+  async searchGooglePlaces(query: string, limit = 5): Promise<PlaceSearchResult[]> {
+    if (!this.googleMapsApiKey) {
+      throw new ServiceUnavailableException(
+        'Google Maps is not configured. Set GOOGLE_MAPS_API_KEY.',
+      );
+    }
+
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': this.googleMapsApiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.formattedAddress,places.location,places.types,places.googleMapsUri,places.addressComponents',
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        maxResultCount: Math.min(limit, 10),
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new ServiceUnavailableException(
+        `Google Maps search failed (${response.status}): ${detail.slice(0, 200)}`,
+      );
+    }
+
+    const data = (await response.json()) as { places?: unknown[] };
+    return (data.places ?? [])
+      .map((place) => mapGooglePlace(place as Parameters<typeof mapGooglePlace>[0]))
+      .filter((place): place is GooglePlaceRecord => !!place)
+      .map((place) => this.googleRecordToResult(place));
+  }
+
+  async getGooglePlaceDetails(
+    googlePlaceId: string,
+  ): Promise<GooglePlaceRecord | null> {
+    if (!this.googleMapsApiKey) {
+      throw new ServiceUnavailableException(
+        'Google Maps is not configured. Set GOOGLE_MAPS_API_KEY.',
+      );
+    }
+
+    const resourceName = googlePlaceResourceName(googlePlaceId);
+    const response = await fetch(
+      `https://places.googleapis.com/v1/${resourceName}`,
+      {
+        headers: {
+          'X-Goog-Api-Key': this.googleMapsApiKey,
+          'X-Goog-FieldMask':
+            'id,displayName,formattedAddress,location,types,googleMapsUri,addressComponents',
+        },
+      },
+    );
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Google place details failed (${response.status}) for ${resourceName}`,
+      );
+      return null;
+    }
+
+    const place = (await response.json()) as Parameters<typeof mapGooglePlace>[0];
+    return mapGooglePlace(place);
   }
 
   async search(query: string, limit = 5): Promise<PlaceSearchResult[]> {
@@ -211,6 +308,26 @@ export class PlacesService {
       googleMapsUrl: mapsUrl,
       osmUrl: `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`,
       streetViewUrl: `https://www.google.com/maps?layer=c&cbll=${lat},${lon}`,
+      category: inferCategoryFromTypes(),
+      source: googlePlaceId ? 'google' : 'openstreetmap',
+    };
+  }
+
+  private googleRecordToResult(place: GooglePlaceRecord): PlaceSearchResult {
+    const { latitude, longitude } = place;
+    return {
+      name: place.name,
+      displayName: place.displayName,
+      latitude,
+      longitude,
+      city: place.city,
+      country: place.country,
+      googlePlaceId: place.googlePlaceId,
+      googleMapsUrl: place.googleMapsUrl,
+      osmUrl: `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`,
+      streetViewUrl: `https://www.google.com/maps?layer=c&cbll=${latitude},${longitude}`,
+      category: place.category,
+      source: 'google',
     };
   }
 }

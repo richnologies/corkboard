@@ -1,0 +1,105 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ 'people.title' | translate }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openCreate()">
+        <ion-icon slot="icon-only" name="add-outline" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <p class="intro">{{ 'people.intro' | translate }}</p>
+
+  <ion-item class="search-item">
+    <ion-input
+      [placeholder]="'people.searchPlaceholder' | translate"
+      [value]="search()"
+      (ionInput)="onSearchInput($event)"
+      clearInput
+    />
+  </ion-item>
+
+  @if (loading()) {
+    <div class="loading-center"><ion-spinner /></div>
+  } @else if (!filteredPeople().length) {
+    <div class="empty-state">
+      <ion-icon name="people-outline" />
+      <h3>{{ 'people.emptyTitle' | translate }}</h3>
+      <p>{{ 'people.emptyBody' | translate }}</p>
+      <ion-button (click)="openCreate()">{{ 'people.addFirst' | translate }}</ion-button>
+    </div>
+  } @else {
+    <ion-list lines="none">
+      @for (person of filteredPeople(); track person.id) {
+        <ion-item class="person-card" button (click)="openEdit(person)">
+          <ion-label>
+            <h2>{{ person.name }}</h2>
+            <p>
+              <ion-chip class="type-chip">{{ 'personType.' + person.type | translate }}</ion-chip>
+            </p>
+            <p class="stats">
+              {{ 'people.stats' | translate: { sources: person.sourceCount, visits: person.visitCount } }}
+            </p>
+          </ion-label>
+          <ion-button
+            slot="end"
+            fill="clear"
+            color="medium"
+            (click)="$event.stopPropagation(); removePerson(person)"
+          >
+            <ion-icon slot="icon-only" name="trash-outline" />
+          </ion-button>
+        </ion-item>
+      }
+    </ion-list>
+  }
+</ion-content>
+
+<ion-modal [isOpen]="editorOpen()" (didDismiss)="closeEditor()">
+  <ng-template>
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>
+          {{ (editingPerson() ? 'people.editTitle' : 'people.addTitle') | translate }}
+        </ion-title>
+        <ion-buttons slot="end">
+          <ion-button (click)="closeEditor()">{{ 'common.cancel' | translate }}</ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+    <ion-content class="page-shell">
+      <form [formGroup]="form" (ngSubmit)="savePerson()">
+        <ion-list lines="none">
+          <ion-item>
+            <ion-input
+              [label]="'people.name' | translate"
+              labelPlacement="stacked"
+              formControlName="name"
+            />
+          </ion-item>
+          <ion-item>
+            <ion-select
+              [label]="'people.type' | translate"
+              labelPlacement="stacked"
+              formControlName="type"
+            >
+              @for (type of personTypes; track type) {
+                <ion-select-option [value]="type">{{ 'personType.' + type | translate }}</ion-select-option>
+              }
+            </ion-select>
+          </ion-item>
+        </ion-list>
+
+        <ion-button expand="block" type="submit" [disabled]="saving() || form.invalid">
+          @if (saving()) {
+            <ion-spinner name="crescent" />
+          } @else {
+            {{ 'common.save' | translate }}
+          }
+        </ion-button>
+      </form>
+    </ion-content>
+  </ng-template>
+</ion-modal>

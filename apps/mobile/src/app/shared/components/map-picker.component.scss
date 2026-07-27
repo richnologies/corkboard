@@ -10,9 +10,10 @@
 
 .map-container {
   height: 280px;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--cork-border);
+  box-shadow: var(--cork-shadow);
   z-index: 0;
 }
 
@@ -29,23 +30,23 @@
 }
 
 .suggestions-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--cork-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin: 16px 0 8px;
 }
 
 .place-suggestion {
   --background: var(--cork-surface);
-  border-radius: 12px;
+  border-radius: 14px;
   margin-bottom: 6px;
   border: 1px solid var(--cork-border);
 
   &.selected {
     border-color: var(--ion-color-primary);
-    --background: rgba(196, 92, 62, 0.08);
+    --background: var(--cork-primary-soft);
   }
 
   p {

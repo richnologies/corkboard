@@ -12,6 +12,13 @@
   </div>
 
   <ion-list lines="none">
+    <ion-item button (click)="openPeople()">
+      <ion-icon slot="start" name="people-outline" />
+      <ion-label>
+        <h3>{{ 'people.title' | translate }}</h3>
+        <p>{{ 'people.profileHint' | translate }}</p>
+      </ion-label>
+    </ion-item>
     <ion-item>
       <ion-label>
         <h3>{{ 'profile.memberSince' | translate }}</h3>

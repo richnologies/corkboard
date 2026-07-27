@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ExperienceVisibility } from '@org/domain';
 import { HydratedDocument, Types } from 'mongoose';
 
 export type ExperienceDocument = HydratedDocument<Experience>;
@@ -27,16 +28,33 @@ export class ExperiencePhotoEmbed {
   key!: string;
 
   @Prop()
+  thumbKey?: string;
+
+  @Prop()
   notes?: string;
+
+  @Prop()
+  aiDescription?: string;
 }
 
 @Schema({ timestamps: true, collection: 'experiences' })
 export class Experience {
-  @Prop({ type: Types.ObjectId, required: true, index: true })
+  @Prop({ type: Types.ObjectId, required: true, index: true, ref: 'Item' })
   itemId!: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true, index: true })
-  userId!: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, required: true, index: true, ref: 'User' })
+  authorId!: Types.ObjectId;
+
+  @Prop({
+    type: String,
+    required: true,
+    enum: Object.values(ExperienceVisibility),
+    default: ExperienceVisibility.Shared,
+  })
+  visibility!: ExperienceVisibility;
+
+  @Prop({ type: [Types.ObjectId], default: [], ref: 'User' })
+  participantUserIds!: Types.ObjectId[];
 
   @Prop({ required: true })
   visitedAt!: Date;
@@ -50,12 +68,27 @@ export class Experience {
   @Prop()
   wouldReturn?: boolean;
 
-  @Prop({ type: [String], default: [] })
-  companions!: string[];
+  @Prop({ type: [Types.ObjectId], default: [], ref: 'Person' })
+  companionPersonIds!: Types.ObjectId[];
 
   @Prop({ type: [ExperiencePhotoEmbed], default: [] })
   photos!: ExperiencePhotoEmbed[];
+
+  @Prop()
+  itemName?: string;
+
+  @Prop()
+  searchText?: string;
+
+  @Prop({ type: [Number], default: undefined })
+  searchEmbedding?: number[];
+
+  @Prop()
+  searchIndexedAt?: Date;
 }
 
 export const ExperienceSchema = SchemaFactory.createForClass(Experience);
 ExperienceSchema.index({ itemId: 1, visitedAt: -1 });
+ExperienceSchema.index({ authorId: 1, visitedAt: -1 });
+ExperienceSchema.index({ participantUserIds: 1 });
+ExperienceSchema.index({ searchText: 'text' });

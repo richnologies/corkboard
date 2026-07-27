@@ -8,7 +8,7 @@ import {
 } from '../experiences/experience.schema.js';
 import { SharingService } from '../sharing/sharing.service.js';
 import { RecommendationsQueryDto } from './dto/recommendations.dto.js';
-import { ItemStatus } from '@org/domain';
+import { ItemStatus, hasFavoriteTag } from '@org/domain';
 import { mapItem } from '../common/mappers.js';
 
 export interface RecommendationResult {
@@ -59,7 +59,10 @@ export class RecommendationsService {
 
     const itemIds = items.map((i) => i._id);
     const experiences = await this.experienceModel
-      .find({ itemId: { $in: itemIds }, userId: new Types.ObjectId(userId) })
+      .find({
+        itemId: { $in: itemIds },
+        authorId: new Types.ObjectId(userId),
+      })
       .sort({ visitedAt: -1 })
       .exec();
 
@@ -81,7 +84,7 @@ export class RecommendationsService {
       const matchReasons: string[] = [];
       let score = 0;
 
-      if (item.status === ItemStatus.Favorite) {
+      if (hasFavoriteTag(item.tags)) {
         score += 3;
         matchReasons.push('Favorite');
       } else if (item.status === ItemStatus.Wishlist) {

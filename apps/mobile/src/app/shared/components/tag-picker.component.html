@@ -1,0 +1,60 @@
+<div class="tag-picker">
+  <p class="section-label">{{ 'item.tags' | translate }}</p>
+
+  @if (tags().length) {
+    <div class="selected-tags">
+      @for (tag of tags(); track tag) {
+        <ion-chip class="tag-pill selected" (click)="removeTag(tag)">
+          <ion-label>{{ tag }}</ion-label>
+          <ion-icon name="close-circle" />
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ 'item.tagsEmptyHint' | translate }}</p>
+  }
+
+  <ion-item class="search-item">
+    <ion-input
+      [placeholder]="'item.tagsSearchPlaceholder' | translate"
+      [value]="query()"
+      (ionInput)="onQueryInput($event)"
+      (keydown.enter)="addFromQuery($event)"
+      clearInput
+    />
+  </ion-item>
+
+  @if (canCreateNew()) {
+    <ion-button
+      expand="block"
+      fill="outline"
+      size="small"
+      class="create-tag-btn"
+      (click)="addFromQuery()"
+    >
+      <ion-icon slot="start" name="add-outline" />
+      {{ 'item.addTag' | translate: { tag: query().trim() } }}
+    </ion-button>
+  }
+
+  <p class="suggestions-label">{{ 'item.tagsLibrary' | translate }}</p>
+
+  @if (loading()) {
+    <div class="loading-row"><ion-spinner name="crescent" /></div>
+  } @else if (filteredSuggestions().length) {
+    <div class="suggestions">
+      @for (entry of filteredSuggestions(); track entry.tag) {
+        <ion-chip
+          class="tag-pill suggestion"
+          [outline]="true"
+          (click)="toggleTag(entry.tag)"
+        >
+          <ion-label>{{ entry.tag }}</ion-label>
+          <span class="count">{{ entry.count }}</span>
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ 'item.tagsNoMatches' | translate }}</p>
+  }
+</div>

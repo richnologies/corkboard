@@ -1,85 +1,116 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title class="brand-title">{{ 'discover.title' | translate }}</ion-title>
+    <ion-title class="brand-title">{{ 'chat.title' | translate }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="page-shell">
-  <section class="hero">
-    <ion-icon name="sparkles-outline" />
-    <h2>{{ 'discover.heroTitle' | translate }}</h2>
-    <p>{{ 'discover.heroBody' | translate }}</p>
-  </section>
+<ion-content class="chat-page">
+  <div class="chat-scroll" #chatScroll>
+    @if (!messages().length) {
+      <section class="chat-empty">
+        <ion-icon name="chatbubble-ellipses-outline" />
+        <h2>{{ 'chat.emptyTitle' | translate }}</h2>
+        <p>{{ 'chat.emptyBody' | translate }}</p>
+        <div class="chat-examples">
+          @for (key of examplePrompts; track key) {
+            <ion-chip (click)="useExample(key)">{{ key | translate }}</ion-chip>
+          }
+        </div>
+      </section>
+    }
 
-  <div class="presets">
-    <ion-button expand="block" (click)="dateNight()">
-      <ion-icon slot="start" name="sparkles-outline" />
-      {{ 'discover.dateTonight' | translate }}
-    </ion-button>
-    <ion-button expand="block" fill="outline" (click)="weekendGetaway()">
-      {{ 'discover.weekendGetaway' | translate }}
-    </ion-button>
+    @for (message of messages(); track message.id) {
+      <div class="chat-row" [class.chat-row-user]="message.role === 'user'" [class.chat-row-assistant]="message.role === 'assistant'">
+        <div class="chat-bubble" [class.chat-bubble-error]="message.error">
+          <p>{{ message.content }}</p>
+
+          @if (message.photoPreviewUrls?.length) {
+            <div class="chat-photo-strip">
+              @for (src of message.photoPreviewUrls!; track src) {
+                <img [src]="src" alt="" />
+              }
+            </div>
+          }
+
+          @if (message.relatedItems?.length) {
+            <div class="chat-related">
+              @for (item of message.relatedItems!; track item.id) {
+                <ion-chip (click)="openItem(item.id)">{{ item.name }}</ion-chip>
+              }
+            </div>
+          }
+
+          @if (message.placeCandidates?.length) {
+            <div class="chat-map-candidates">
+              @for (candidate of message.placeCandidates!; track candidate.googlePlaceId) {
+                <button
+                  type="button"
+                  class="map-candidate"
+                  (click)="confirmMapCandidate(candidate)"
+                  [disabled]="sending()"
+                >
+                  <span class="map-candidate-index">{{ candidate.index }}</span>
+                  <span class="map-candidate-copy">
+                    <strong>{{ candidate.name }}</strong>
+                    <span>{{ candidate.address }}</span>
+                  </span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (sending()) {
+      <div class="chat-row chat-row-assistant">
+        <div class="chat-bubble chat-bubble-typing">
+          <ion-spinner name="dots" />
+        </div>
+      </div>
+    }
   </div>
+</ion-content>
 
-  <ion-list lines="none" class="options">
-    <ion-item>
-      <ion-toggle [checked]="useLocation()" (ionChange)="useLocation.set($event.detail.checked)" labelPlacement="start">
-        {{ 'discover.useLocation' | translate }}
-      </ion-toggle>
-    </ion-item>
-    <ion-item>
-      <ion-label>{{ 'discover.radius' | translate: { km: radiusKm() } }}</ion-label>
-      <ion-range min="2" max="50" [value]="radiusKm()" (ionChange)="radiusKm.set($any($event.detail).value)" />
-    </ion-item>
-  </ion-list>
-
-  @if (tags().length) {
-    <p class="section-label">{{ 'discover.filterByTags' | translate }}</p>
-    <div class="filter-bar">
-      @for (t of tags(); track t.tag) {
-        <ion-chip
-          [color]="selectedTags().includes(t.tag) ? 'tertiary' : undefined"
-          (click)="toggleTag(t.tag)"
-        >
-          {{ t.tag }}
-        </ion-chip>
+<ion-footer class="chat-footer">
+  @if (pendingPhotos().length) {
+    <div class="chat-pending-photos">
+      @for (photo of pendingPhotos(); track photo.id) {
+        <div class="chat-pending-photo">
+          <img [src]="photo.previewUrl" alt="" />
+          <button type="button" class="remove-pending" (click)="removePendingPhoto(photo.id)">×</button>
+        </div>
       }
     </div>
   }
 
-  <ion-button expand="block" class="suggest-btn" (click)="suggest()" [disabled]="loading()">
-    @if (loading()) {
-      <ion-spinner name="crescent" />
-    } @else {
-      {{ 'discover.findSuggestions' | translate }}
-    }
-  </ion-button>
-
-  @if (results().length) {
-    <h3 class="results-title">{{ 'discover.topPicks' | translate }}</h3>
-    @for (rec of results(); track rec.item.id) {
-      <ion-card class="item-card" button (click)="openItem(rec.item.id)">
-        <ion-card-content>
-          <div class="rec-row">
-            <div class="score-badge">{{ rec.latestOverallRating?.toFixed(1) ?? ('common.dash' | translate) }}</div>
-            <div class="rec-meta">
-              <h2>{{ rec.item.name }}</h2>
-              <p>{{ 'category.' + rec.item.category | translate }}</p>
-              @if (rec.distanceKm != null) {
-                <p class="distance">
-                  <ion-icon name="navigate-outline" />
-                  {{ 'discover.distanceKm' | translate: { km: rec.distanceKm.toFixed(1) } }}
-                </p>
-              }
-              <div class="reasons">
-                @for (reason of rec.matchReasons.slice(0, 3); track reason) {
-                  <ion-chip class="tag-chip">{{ reason }}</ion-chip>
-                }
-              </div>
-            </div>
-          </div>
-        </ion-card-content>
-      </ion-card>
-    }
+  @if (photoError()) {
+    <p class="chat-photo-error">{{ photoError()! | translate }}</p>
   }
-</ion-content>
+
+  <div class="chat-composer">
+    <input
+      #photoInput
+      type="file"
+      accept="image/*"
+      multiple
+      hidden
+      (change)="onPhotosSelected($event)"
+    />
+    <ion-button fill="clear" color="medium" (click)="photoInput.click()" [disabled]="sending()">
+      <ion-icon slot="icon-only" name="camera-outline" />
+    </ion-button>
+    <ion-textarea
+      class="chat-input"
+      [placeholder]="'chat.inputPlaceholder' | translate"
+      [value]="draft()"
+      (ionInput)="onDraftInput($event)"
+      [autoGrow]="true"
+      rows="1"
+      (keydown.enter)="$event.preventDefault(); send()"
+    />
+    <ion-button fill="clear" (click)="send()" [disabled]="sending() || (!draft().trim() && !pendingPhotos().length)">
+      <ion-icon slot="icon-only" name="send-outline" />
+    </ion-button>
+  </div>
+</ion-footer>

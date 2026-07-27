@@ -1,15 +1,9 @@
-.loading-center {
-  display: flex;
-  justify-content: center;
-  padding: 48px;
-}
-
 .section-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--cork-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin: 20px 0 8px;
 }
 
@@ -37,11 +31,14 @@
 
 .selected-place {
   margin: 0;
+  --background: var(--cork-primary-soft);
+  --color: var(--ion-color-primary);
+  font-weight: 600;
 }
 
 .place-result {
   --background: var(--cork-surface);
-  border-radius: 12px;
+  border-radius: 14px;
   margin-bottom: 6px;
   border: 1px solid var(--cork-border);
 
@@ -53,8 +50,9 @@
 
 .save-btn {
   margin-top: 24px;
-  --border-radius: 12px;
+  --border-radius: 14px;
   font-weight: 600;
+  --box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
 }
 
 .location-actions {
@@ -69,6 +67,7 @@
   color: var(--cork-muted);
   font-size: 14px;
   margin: 0 0 12px;
+  line-height: 1.5;
 }
 
 ion-item {

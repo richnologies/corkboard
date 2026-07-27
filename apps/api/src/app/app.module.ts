@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppConfigModule } from '../config/config.module.js';
+import { OpenAiModule } from '../openai/openai.module.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { UsersModule } from '../users/users.module.js';
@@ -11,11 +12,14 @@ import { EmailModule } from '../email/email.module.js';
 import { HealthController } from '../health/health.controller.js';
 import { TagsModule } from '../tags/tags.module.js';
 import { RecommendationsModule } from '../recommendations/recommendations.module.js';
+import { PeopleModule } from '../people/people.module.js';
 import { PlacesModule } from '../places/places.module.js';
+import { AssistantModule } from '../assistant/assistant.module.js';
 
 @Module({
   imports: [
     AppConfigModule,
+    OpenAiModule,
     DatabaseModule,
     UsersModule,
     AuthModule,
@@ -25,8 +29,10 @@ import { PlacesModule } from '../places/places.module.js';
     StorageModule,
     EmailModule,
     TagsModule,
+    PeopleModule,
     RecommendationsModule,
     PlacesModule,
+    AssistantModule,
   ],
   controllers: [HealthController],
 })

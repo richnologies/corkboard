@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -57,6 +58,10 @@ class SourceDto {
   referrerName?: string;
 
   @IsOptional()
+  @IsString()
+  referrerPersonId?: string;
+
+  @IsOptional()
   @IsUrl()
   url?: string;
 
@@ -100,6 +105,10 @@ export class CreateItemDto {
   @ValidateNested()
   @Type(() => SourceDto)
   source?: SourceDto;
+
+  @IsOptional()
+  @IsString()
+  rejectionReason?: string;
 }
 
 export class UpdateItemDto {
@@ -139,6 +148,10 @@ export class UpdateItemDto {
   @ValidateNested()
   @Type(() => SourceDto)
   source?: SourceDto;
+
+  @IsOptional()
+  @IsString()
+  rejectionReason?: string;
 }
 
 export class ItemQueryDto {
@@ -164,6 +177,11 @@ export class ItemQueryDto {
 
   @IsOptional()
   @IsString()
+  q?: string;
+
+  /** @deprecated Use q */
+  @IsOptional()
+  @IsString()
   city?: string;
 }
 
@@ -174,4 +192,8 @@ export class PresignPhotoDto {
   @IsOptional()
   @IsString()
   extension?: string;
+
+  @IsOptional()
+  @IsIn(['thumb'])
+  variant?: 'thumb';
 }

@@ -14,13 +14,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { logOutOutline, personCircleOutline } from 'ionicons/icons';
+import { logOutOutline, peopleOutline, personCircleOutline } from 'ionicons/icons';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { AppLocale, isAppLocale } from '../../core/i18n/locale';
 
-addIcons({ logOutOutline, personCircleOutline });
+addIcons({ logOutOutline, peopleOutline, personCircleOutline });
 
 @Component({
   selector: 'app-profile',
@@ -46,6 +47,11 @@ addIcons({ logOutOutline, personCircleOutline });
 export class ProfilePage {
   readonly auth = inject(AuthService);
   readonly i18n = inject(I18nService);
+  private readonly router = inject(Router);
+
+  openPeople() {
+    this.router.navigate(['/tabs/people']);
+  }
 
   onLocaleChange(event: CustomEvent) {
     const value = (event.detail as { value?: string }).value;

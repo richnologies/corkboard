@@ -53,6 +53,7 @@ export class ItemsController {
       user.userId,
       dto.contentType,
       dto.extension,
+      dto.variant,
     );
   }
 
