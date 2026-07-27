@@ -1,0 +1,49 @@
+name: Live Deployment
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-api:
+    name: Deploy Malviviendo API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build API
+        run: npm exec nx build api --configuration=production
+
+      - name: Prepare deployable package
+        run: npm exec nx prune api
+
+      - name: Install production dependencies in dist
+        working-directory: apps/api/dist
+        run: npm ci --omit=dev
+
+      - name: Deploy API
+        uses: burnett01/rsync-deployments@5.2
+        with:
+          switches: -av --delete
+          path: apps/api/dist/
+          remote_path: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_PATH }}
+          remote_host: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_HOST }}
+          remote_user: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_USER }}
+          remote_key: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_KEY }}
+
+      - name: Restart API container
+        uses: garygrossgarten/github-action-ssh@release
+        with:
+          command: docker restart corkboard-api
+          host: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_HOST }}
+          username: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_USER }}
+          privateKey: ${{ secrets.CORKBOARD_API_LIVE_REMOTE_KEY }}
