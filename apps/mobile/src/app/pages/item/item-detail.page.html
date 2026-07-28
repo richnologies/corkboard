@@ -289,7 +289,7 @@
         <input
           #photoInput
           type="file"
-          accept="image/*"
+          [accept]="imageAccept"
           multiple
           hidden
           (change)="onPhotosSelected($event)"

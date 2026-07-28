@@ -58,7 +58,12 @@ import {
   LightboxPhoto,
   PhotoLightboxComponent,
 } from '../../shared/components/photo-lightbox.component';
-import { ImagePrepareError, prepareImageFile } from '../../shared/utils/image-resize';
+import {
+  IMAGE_ACCEPT,
+  ImagePrepareError,
+  isImageFile,
+  prepareImageFile,
+} from '../../shared/utils/image-resize';
 
 addIcons({
   createOutline,
@@ -142,6 +147,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
   private readonly alertController = inject(AlertController);
   readonly i18n = inject(I18nService);
 
+  readonly imageAccept = IMAGE_ACCEPT;
   readonly rejectedStatus = ItemStatus.Rejected;
 
   readonly history = signal<ItemHistory | null>(null);
@@ -265,7 +271,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     const drafts: VisitPhotoNew[] = [];
     try {
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue;
+        if (!isImageFile(file)) continue;
         try {
           const { full, thumb } = await prepareImageFile(file);
           drafts.push({

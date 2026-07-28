@@ -1,3 +1,9 @@
+const HEIC_EXTENSIONS = /\.(heic|heif)$/i;
+const HEIC_MIME = /^image\/hei[cf]/i;
+
+export const IMAGE_ACCEPT =
+  'image/*,.heic,.heif,image/heic,image/heif';
+
 export const IMAGE_LIMITS = {
   maxSourceBytes: 20 * 1024 * 1024,
   maxFullDimension: 1920,
@@ -6,9 +12,69 @@ export const IMAGE_LIMITS = {
   thumbQuality: 0.75,
 } as const;
 
+const BITMAP_OPTIONS: ImageBitmapOptions = { imageOrientation: 'from-image' };
+
 export class ImagePrepareError extends Error {
   constructor(readonly code: 'IMAGE_TOO_LARGE' | 'IMAGE_INVALID' | 'IMAGE_PROCESS_FAILED') {
     super(code);
+  }
+}
+
+export function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  return HEIC_EXTENSIONS.test(file.name);
+}
+
+function isHeicFile(file: File): boolean {
+  if (HEIC_MIME.test(file.type)) return true;
+  return HEIC_EXTENSIONS.test(file.name);
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = url;
+  });
+}
+
+async function decodeViaImageElement(file: File): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImage(url);
+    return await createImageBitmap(img, BITMAP_OPTIONS);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function decodeHeicViaLibheif(file: File): Promise<ImageBitmap> {
+  const { heicTo } = await import('heic-to');
+  return await heicTo({
+    blob: file,
+    type: 'bitmap',
+    options: BITMAP_OPTIONS,
+  });
+}
+
+async function decodeToImageBitmap(file: File): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, BITMAP_OPTIONS);
+  } catch {
+    if (!isHeicFile(file)) {
+      throw new ImagePrepareError('IMAGE_PROCESS_FAILED');
+    }
+
+    try {
+      return await decodeViaImageElement(file);
+    } catch {
+      try {
+        return await decodeHeicViaLibheif(file);
+      } catch {
+        throw new ImagePrepareError('IMAGE_PROCESS_FAILED');
+      }
+    }
   }
 }
 
@@ -18,11 +84,11 @@ export async function prepareImageFile(
   if (file.size > IMAGE_LIMITS.maxSourceBytes) {
     throw new ImagePrepareError('IMAGE_TOO_LARGE');
   }
-  if (!file.type.startsWith('image/')) {
+  if (!isImageFile(file)) {
     throw new ImagePrepareError('IMAGE_INVALID');
   }
 
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const bitmap = await decodeToImageBitmap(file);
   try {
     const full = await bitmapToJpegFile(
       bitmap,

@@ -27,7 +27,12 @@ import {
 import { MediaService } from '../../core/services/media.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { ImagePrepareError, prepareImageFile } from '../../shared/utils/image-resize';
+import {
+  IMAGE_ACCEPT,
+  ImagePrepareError,
+  isImageFile,
+  prepareImageFile,
+} from '../../shared/utils/image-resize';
 
 addIcons({ chatbubbleEllipsesOutline, sendOutline, cameraOutline });
 
@@ -59,6 +64,8 @@ interface PendingPhoto {
 })
 export class DiscoverPage {
   @ViewChild('chatScroll') chatScroll?: ElementRef<HTMLDivElement>;
+
+  readonly imageAccept = IMAGE_ACCEPT;
 
   private readonly assistant = inject(AssistantService);
   private readonly media = inject(MediaService);
@@ -107,7 +114,7 @@ export class DiscoverPage {
     const next: PendingPhoto[] = [];
 
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
+      if (!isImageFile(file)) continue;
       try {
         const { full, thumb } = await prepareImageFile(file);
         next.push({
