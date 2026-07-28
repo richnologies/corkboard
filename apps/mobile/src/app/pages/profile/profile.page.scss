@@ -23,6 +23,20 @@
   }
 }
 
+.people-link {
+  --background: var(--cork-primary-soft);
+  border-color: var(--cork-primary-muted);
+
+  ion-icon[slot='start'] {
+    color: var(--ion-color-primary);
+    font-size: 22px;
+  }
+
+  h3 {
+    font-weight: 700;
+  }
+}
+
 ion-button {
   margin-top: 32px;
   --border-radius: 14px;

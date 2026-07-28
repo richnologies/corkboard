@@ -1,116 +1,231 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-title class="brand-title">{{ 'chat.title' | translate }}</ion-title>
-  </ion-toolbar>
-</ion-header>
+<ion-menu menuId="chat-history" contentId="discover-main" type="overlay">
+  <ion-header>
+    <ion-toolbar>
+      <ion-title>{{ 'chat.historyTitle' | translate }}</ion-title>
+    </ion-toolbar>
+  </ion-header>
+  <ion-content class="history-menu">
+    <div class="history-actions">
+      <ion-button expand="block" (click)="startNewChat()">
+        <ion-icon slot="start" name="add-outline" />
+        {{ 'chat.newChat' | translate }}
+      </ion-button>
+    </div>
 
-<ion-content class="chat-page">
-  <div class="chat-scroll" #chatScroll>
+    @if (conversationsLoading()) {
+      <div class="history-loading"><ion-spinner /></div>
+    } @else if (!conversations().length) {
+      <p class="history-empty">{{ 'chat.historyEmpty' | translate }}</p>
+    } @else {
+      <ion-list lines="none">
+        @for (conversation of conversations(); track conversation.id) {
+          <ion-item
+            button
+            class="history-item"
+            [class.active]="conversationId() === conversation.id"
+            (click)="openConversation(conversation.id)"
+          >
+            <ion-label>
+              <h2>{{ conversation.title }}</h2>
+              <p>{{ conversation.updatedAt | date: 'medium' }}</p>
+            </ion-label>
+            <ion-button
+              slot="end"
+              fill="clear"
+              color="medium"
+              (click)="removeConversation($event, conversation.id)"
+            >
+              <ion-icon slot="icon-only" name="trash-outline" />
+            </ion-button>
+          </ion-item>
+        }
+      </ion-list>
+    }
+  </ion-content>
+</ion-menu>
+
+<div class="ion-page" id="discover-main">
+  <ion-header>
+    <ion-toolbar>
+      <ion-buttons slot="start">
+        <ion-menu-button menu="chat-history" />
+      </ion-buttons>
+      <ion-title class="brand-title">
+        {{ activeTitle() || ('chat.title' | translate) }}
+      </ion-title>
+    </ion-toolbar>
+  </ion-header>
+
+  <ion-content class="chat-page" [fullscreen]="true" #chatContent>
     @if (!messages().length) {
       <section class="chat-empty">
-        <ion-icon name="chatbubble-ellipses-outline" />
-        <h2>{{ 'chat.emptyTitle' | translate }}</h2>
-        <p>{{ 'chat.emptyBody' | translate }}</p>
-        <div class="chat-examples">
-          @for (key of examplePrompts; track key) {
-            <ion-chip (click)="useExample(key)">{{ key | translate }}</ion-chip>
-          }
-        </div>
-      </section>
-    }
+          <ion-icon name="chatbubble-ellipses-outline" />
+          <h2>{{ 'chat.emptyTitle' | translate }}</h2>
+          <p>{{ 'chat.emptyBody' | translate }}</p>
+          <div class="chat-examples">
+            @for (key of examplePrompts; track key) {
+              <ion-chip (click)="useExample(key)">{{ key | translate }}</ion-chip>
+            }
+          </div>
+        </section>
+      }
 
-    @for (message of messages(); track message.id) {
-      <div class="chat-row" [class.chat-row-user]="message.role === 'user'" [class.chat-row-assistant]="message.role === 'assistant'">
-        <div class="chat-bubble" [class.chat-bubble-error]="message.error">
-          <p>{{ message.content }}</p>
+      @for (message of messages(); track message.id) {
+        <div class="chat-row" [class.chat-row-user]="message.role === 'user'" [class.chat-row-assistant]="message.role === 'assistant'">
+          <div class="chat-bubble" [class.chat-bubble-error]="message.error">
+            <p>{{ message.content }}</p>
 
-          @if (message.photoPreviewUrls?.length) {
-            <div class="chat-photo-strip">
-              @for (src of message.photoPreviewUrls!; track src) {
-                <img [src]="src" alt="" />
-              }
-            </div>
-          }
+            @if (message.photoPreviewUrls?.length) {
+              <div class="chat-photo-strip">
+                @for (src of message.photoPreviewUrls!; track src) {
+                  <img [src]="src" alt="" />
+                }
+              </div>
+            }
 
-          @if (message.relatedItems?.length) {
-            <div class="chat-related">
-              @for (item of message.relatedItems!; track item.id) {
-                <ion-chip (click)="openItem(item.id)">{{ item.name }}</ion-chip>
-              }
-            </div>
-          }
+            @if (message.photoKeys?.length) {
+              <div class="chat-photo-strip">
+                @for (key of message.photoKeys!; track key) {
+                  @if (photoUrl(key); as src) {
+                    <img [src]="src" alt="" />
+                  }
+                }
+              </div>
+            }
 
-          @if (message.placeCandidates?.length) {
-            <div class="chat-map-candidates">
-              @for (candidate of message.placeCandidates!; track candidate.googlePlaceId) {
-                <button
-                  type="button"
-                  class="map-candidate"
-                  (click)="confirmMapCandidate(candidate)"
-                  [disabled]="sending()"
-                >
-                  <span class="map-candidate-index">{{ candidate.index }}</span>
-                  <span class="map-candidate-copy">
-                    <strong>{{ candidate.name }}</strong>
-                    <span>{{ candidate.address }}</span>
-                  </span>
-                </button>
-              }
-            </div>
-          }
-        </div>
-      </div>
-    }
+            @if (message.relatedItems?.length) {
+              <div class="chat-related">
+                @for (item of message.relatedItems!; track item.id) {
+                  <ion-chip (click)="openItem(item.id)">{{ item.name }}</ion-chip>
+                }
+              </div>
+            }
 
-    @if (sending()) {
-      <div class="chat-row chat-row-assistant">
-        <div class="chat-bubble chat-bubble-typing">
-          <ion-spinner name="dots" />
-        </div>
-      </div>
-    }
-  </div>
-</ion-content>
+            @if (message.placeCandidates?.length) {
+              <div class="chat-map-candidates">
+                @for (candidate of message.placeCandidates!; track candidate.googlePlaceId) {
+                  <button
+                    type="button"
+                    class="map-candidate"
+                    (click)="confirmMapCandidate(candidate)"
+                    [disabled]="sending()"
+                  >
+                    <span class="map-candidate-index">{{ candidate.index }}</span>
+                    <span class="map-candidate-copy">
+                      <strong>{{ candidate.name }}</strong>
+                      <span>{{ candidate.address }}</span>
+                    </span>
+                  </button>
+                }
+              </div>
+            }
 
-<ion-footer class="chat-footer">
-  @if (pendingPhotos().length) {
-    <div class="chat-pending-photos">
-      @for (photo of pendingPhotos(); track photo.id) {
-        <div class="chat-pending-photo">
-          <img [src]="photo.previewUrl" alt="" />
-          <button type="button" class="remove-pending" (click)="removePendingPhoto(photo.id)">×</button>
+            @if (message.companionAmbiguities?.length && message.pendingVisit) {
+              <div class="chat-companion-ambiguities">
+                @for (ambiguity of message.companionAmbiguities!; track ambiguity.query) {
+                  <div class="companion-ambiguity">
+                    <p class="companion-ambiguity-label">
+                      {{ 'chat.companionAmbiguity' | translate: { name: ambiguity.query } }}
+                    </p>
+                    <div class="companion-options">
+                      @for (candidate of ambiguity.candidates; track candidate.id) {
+                        <button
+                          type="button"
+                          class="companion-option"
+                          (click)="confirmCompanion(ambiguity, candidate.id, message.pendingVisit!)"
+                          [disabled]="sending()"
+                        >
+                          <strong>{{ candidate.name }}</strong>
+                          <span>{{ 'personType.' + candidate.type | translate }}</span>
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="companion-option companion-option-new"
+                        (click)="confirmCompanionNew(ambiguity, message.pendingVisit!)"
+                        [disabled]="sending()"
+                      >
+                        {{ 'chat.companionCreateNew' | translate: { name: ambiguity.query } }}
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
         </div>
       }
+
+      @if (sending()) {
+        <div class="chat-row chat-row-assistant">
+          <div class="chat-bubble chat-bubble-typing">
+            <ion-spinner name="dots" />
+          </div>
+        </div>
+      }
+  </ion-content>
+
+  <ion-footer class="chat-footer">
+    @if (pendingPhotos().length) {
+      <div class="chat-pending-photos">
+        @for (photo of pendingPhotos(); track photo.id) {
+          <div class="chat-pending-photo">
+            <img [src]="photo.previewUrl" alt="" />
+            <button type="button" class="remove-pending" (click)="removePendingPhoto(photo.id)">×</button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (photoError()) {
+      <p class="chat-photo-error">{{ photoError()! | translate }}</p>
+    }
+
+    @if (speechError()) {
+      <p class="chat-photo-error">{{ speechError()! | translate }}</p>
+    }
+
+    @if (speechListening()) {
+      <p class="chat-listening-hint">{{ 'chat.listening' | translate }}</p>
+    }
+
+    <div class="chat-composer">
+      <input
+        #photoInput
+        type="file"
+        [accept]="imageAccept"
+        multiple
+        hidden
+        (change)="onPhotosSelected($event)"
+      />
+      <ion-button fill="clear" color="medium" (click)="photoInput.click()" [disabled]="sending() || speechListening()">
+        <ion-icon slot="icon-only" name="camera-outline" />
+      </ion-button>
+      @if (speechSupported()) {
+        <ion-button
+          fill="clear"
+          [color]="speechListening() ? 'danger' : 'medium'"
+          class="mic-button"
+          [class.mic-button-active]="speechListening()"
+          (click)="toggleVoiceInput()"
+          [disabled]="sending()"
+        >
+          <ion-icon slot="icon-only" name="mic-outline" />
+        </ion-button>
+      }
+      <ion-textarea
+        class="chat-input"
+        [placeholder]="speechListening() ? ('chat.listeningPlaceholder' | translate) : ('chat.inputPlaceholder' | translate)"
+        [value]="draft()"
+        (ionInput)="onDraftInput($event)"
+        [autoGrow]="true"
+        rows="1"
+        [disabled]="speechListening()"
+        (keydown.enter)="$event.preventDefault(); send()"
+      />
+      <ion-button fill="clear" (click)="send()" [disabled]="sending() || (!draft().trim() && !pendingPhotos().length)">
+        <ion-icon slot="icon-only" name="send-outline" />
+      </ion-button>
     </div>
-  }
-
-  @if (photoError()) {
-    <p class="chat-photo-error">{{ photoError()! | translate }}</p>
-  }
-
-  <div class="chat-composer">
-    <input
-      #photoInput
-      type="file"
-      [accept]="imageAccept"
-      multiple
-      hidden
-      (change)="onPhotosSelected($event)"
-    />
-    <ion-button fill="clear" color="medium" (click)="photoInput.click()" [disabled]="sending()">
-      <ion-icon slot="icon-only" name="camera-outline" />
-    </ion-button>
-    <ion-textarea
-      class="chat-input"
-      [placeholder]="'chat.inputPlaceholder' | translate"
-      [value]="draft()"
-      (ionInput)="onDraftInput($event)"
-      [autoGrow]="true"
-      rows="1"
-      (keydown.enter)="$event.preventDefault(); send()"
-    />
-    <ion-button fill="clear" (click)="send()" [disabled]="sending() || (!draft().trim() && !pendingPhotos().length)">
-      <ion-icon slot="icon-only" name="send-outline" />
-    </ion-button>
-  </div>
-</ion-footer>
+  </ion-footer>
+</div>

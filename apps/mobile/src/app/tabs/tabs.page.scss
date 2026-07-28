@@ -2,16 +2,25 @@ ion-tab-bar {
   --background: var(--cork-surface);
   border-top: 1px solid var(--cork-border);
   padding-bottom: env(safe-area-inset-bottom);
+  min-height: var(--tab-bar-height);
 }
 
 ion-tab-button {
   --color: var(--cork-muted);
   --color-selected: var(--ion-color-primary);
+  --padding-top: 6px;
+  --padding-bottom: 6px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  max-width: none;
 
   ion-icon {
-    font-size: 22px;
+    font-size: 24px;
+    margin-bottom: 2px;
+  }
+
+  ion-label {
+    margin-top: 2px;
   }
 }

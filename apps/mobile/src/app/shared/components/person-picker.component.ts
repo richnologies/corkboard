@@ -47,11 +47,16 @@ export class PersonPickerComponent implements OnInit {
 
   readonly query = signal('');
   readonly library = signal<Person[]>([]);
+  readonly similarPeople = signal<Person[]>([]);
   readonly loading = signal(true);
   readonly creating = signal(false);
+  readonly suggesting = signal(false);
+  readonly disambiguationOpen = signal(false);
   readonly newPersonType = signal<PersonType>(PersonType.Friend);
 
   readonly personTypes = Object.values(PersonType);
+
+  private suggestTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly peopleById = computed(() => {
     const map = new Map<string, Person>();
@@ -64,9 +69,11 @@ export class PersonPickerComponent implements OnInit {
   readonly filteredSuggestions = computed(() => {
     const q = this.query().trim().toLowerCase();
     const selected = new Set(this.personIds());
+    const similarIds = new Set(this.similarPeople().map((person) => person.id));
 
     return this.library()
       .filter((person) => !selected.has(person.id))
+      .filter((person) => !similarIds.has(person.id))
       .filter((person) => !q || person.name.toLowerCase().includes(q))
       .slice(0, 12);
   });
@@ -93,6 +100,7 @@ export class PersonPickerComponent implements OnInit {
       next: (people) => {
         this.library.set(people);
         this.loading.set(false);
+        this.refreshSimilarPeople();
       },
       error: () => this.loading.set(false),
     });
@@ -120,6 +128,59 @@ export class PersonPickerComponent implements OnInit {
     if (!name || this.creating()) return;
 
     this.creating.set(true);
+    this.peopleService.suggest(name).subscribe({
+      next: (result) => {
+        this.creating.set(false);
+        if (result.exact) {
+          this.addPerson(result.exact);
+          this.query.set('');
+          this.disambiguationOpen.set(false);
+          return;
+        }
+        if (result.similar.length) {
+          this.similarPeople.set(result.similar);
+          this.disambiguationOpen.set(true);
+          return;
+        }
+        this.createPerson(name);
+      },
+      error: () => this.creating.set(false),
+    });
+  }
+
+  confirmCreateNew() {
+    const name = this.query().trim();
+    if (!name || this.creating()) return;
+    this.createPerson(name);
+  }
+
+  pickSimilar(person: Person) {
+    this.addPerson(person);
+    this.query.set('');
+    this.disambiguationOpen.set(false);
+    this.similarPeople.set([]);
+  }
+
+  cancelDisambiguation() {
+    this.disambiguationOpen.set(false);
+  }
+
+  onQueryInput(ev: CustomEvent) {
+    this.query.set((ev.detail as { value?: string }).value ?? '');
+    this.disambiguationOpen.set(false);
+    this.refreshSimilarPeople();
+  }
+
+  removePerson(id: string) {
+    this.personIds.update((current) => current.filter((personId) => personId !== id));
+  }
+
+  isSelected(id: string): boolean {
+    return this.personIds().includes(id);
+  }
+
+  private createPerson(name: string) {
+    this.creating.set(true);
     this.peopleService
       .create({ name, type: this.newPersonType() })
       .subscribe({
@@ -130,22 +191,32 @@ export class PersonPickerComponent implements OnInit {
           });
           this.addPerson(person);
           this.query.set('');
+          this.disambiguationOpen.set(false);
+          this.similarPeople.set([]);
           this.creating.set(false);
         },
         error: () => this.creating.set(false),
       });
   }
 
-  onQueryInput(ev: CustomEvent) {
-    this.query.set((ev.detail as { value?: string }).value ?? '');
-  }
+  private refreshSimilarPeople() {
+    clearTimeout(this.suggestTimer);
+    const name = this.query().trim();
+    if (!name) {
+      this.similarPeople.set([]);
+      return;
+    }
 
-  removePerson(id: string) {
-    this.personIds.update((current) => current.filter((personId) => personId !== id));
-  }
-
-  isSelected(id: string): boolean {
-    return this.personIds().includes(id);
+    this.suggestTimer = setTimeout(() => {
+      this.suggesting.set(true);
+      this.peopleService.suggest(name).subscribe({
+        next: (result) => {
+          this.similarPeople.set(result.exact ? [] : result.similar);
+          this.suggesting.set(false);
+        },
+        error: () => this.suggesting.set(false),
+      });
+    }, 250);
   }
 
   private addPerson(person: Person) {

@@ -28,3 +28,8 @@ export class PersonQueryDto {
   @IsString()
   q?: string;
 }
+
+export class PersonSuggestQueryDto {
+  @IsString()
+  name!: string;
+}

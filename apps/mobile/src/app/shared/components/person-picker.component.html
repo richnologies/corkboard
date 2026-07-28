@@ -27,7 +27,60 @@
     />
   </ion-item>
 
-  @if (canCreateNew()) {
+  @if (similarPeople().length && !disambiguationOpen()) {
+    <div class="similar-block">
+      <p class="similar-label">{{ 'people.similarPrompt' | translate }}</p>
+      <div class="suggestions">
+        @for (person of similarPeople(); track person.id) {
+          <ion-chip
+            class="person-pill suggestion similar"
+            [outline]="true"
+            (click)="pickSimilar(person)"
+          >
+            <ion-label>{{ person.name }}</ion-label>
+            <span class="type-badge">{{ 'personType.' + person.type | translate }}</span>
+          </ion-chip>
+        }
+      </div>
+    </div>
+  }
+
+  @if (disambiguationOpen()) {
+    <div class="disambiguation">
+      <p class="similar-label">
+        {{ 'people.disambiguationTitle' | translate: { name: query().trim() } }}
+      </p>
+      <div class="suggestions">
+        @for (person of similarPeople(); track person.id) {
+          <ion-chip
+            class="person-pill suggestion similar"
+            [outline]="true"
+            (click)="pickSimilar(person)"
+          >
+            <ion-label>{{ person.name }}</ion-label>
+            <span class="type-badge">{{ 'personType.' + person.type | translate }}</span>
+          </ion-chip>
+        }
+      </div>
+      <ion-button
+        expand="block"
+        fill="outline"
+        size="small"
+        class="create-person-btn"
+        (click)="confirmCreateNew()"
+        [disabled]="creating()"
+      >
+        @if (creating()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ 'people.createAnyway' | translate: { name: query().trim() } }}
+        }
+      </ion-button>
+      <ion-button expand="block" fill="clear" size="small" (click)="cancelDisambiguation()">
+        {{ 'common.cancel' | translate }}
+      </ion-button>
+    </div>
+  } @else if (canCreateNew()) {
     <div class="create-row">
       <ion-select
         [label]="'people.newPersonType' | translate"
@@ -60,7 +113,7 @@
 
   <p class="suggestions-label">{{ libraryLabelKey() | translate }}</p>
 
-  @if (loading()) {
+  @if (loading() || suggesting()) {
     <div class="loading-row"><ion-spinner name="crescent" /></div>
   } @else if (filteredSuggestions().length) {
     <div class="suggestions">

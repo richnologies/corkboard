@@ -80,6 +80,7 @@
     "@aws-sdk/client-s3": "^3.1075.0",
     "@aws-sdk/client-ses": "^3.1075.0",
     "@aws-sdk/s3-request-presigner": "^3.1075.0",
+    "@capacitor-community/speech-recognition": "^6.0.1",
     "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.0",
     "@capacitor/core": "^6.0.0",

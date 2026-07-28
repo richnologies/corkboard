@@ -7,7 +7,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="page-shell">
+<ion-content class="page-shell no-tab-inset">
   @if (loading()) {
     <div class="loading-center"><ion-spinner /></div>
   } @else {
@@ -152,14 +152,18 @@
           <ion-input [label]="'item.sourceNotes' | translate" labelPlacement="stacked" formControlName="sourceNotes" />
         </ion-item>
       </ion-list>
-
-      <ion-button expand="block" type="submit" [disabled]="saving()" class="save-btn">
-        @if (saving()) {
-          <ion-spinner name="crescent" />
-        } @else {
-          {{ 'item.save' | translate }}
-        }
-      </ion-button>
     </form>
   }
 </ion-content>
+
+<ion-footer class="form-sticky-footer">
+  @if (!loading()) {
+    <ion-button expand="block" (click)="save()" [disabled]="saving()" class="save-btn">
+      @if (saving()) {
+        <ion-spinner name="crescent" />
+      } @else {
+        {{ 'item.save' | translate }}
+      }
+    </ion-button>
+  }
+</ion-footer>

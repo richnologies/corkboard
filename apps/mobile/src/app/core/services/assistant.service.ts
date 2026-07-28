@@ -1,4 +1,8 @@
 import { Injectable, inject } from '@angular/core';
+import {
+  CompanionAmbiguity,
+  CompanionNameResolution,
+} from '@org/domain';
 import { ApiService } from './api.service';
 
 export interface MapPlaceCandidate {
@@ -9,13 +13,27 @@ export interface MapPlaceCandidate {
   category: string;
 }
 
+export interface PendingVisitAction {
+  type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
+  placeId?: string;
+  googlePlaceId?: string;
+  experienceId?: string;
+  visitedAt?: string;
+  overallRating?: number;
+  notes?: string;
+  companions: string[];
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   photoPreviewUrls?: string[];
+  photoKeys?: string[];
   relatedItems?: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  companionAmbiguities?: CompanionAmbiguity[];
+  pendingVisit?: PendingVisitAction;
   error?: boolean;
 }
 
@@ -23,11 +41,22 @@ export interface AssistantChatResponse {
   message: string;
   relatedItems: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  companionAmbiguities?: CompanionAmbiguity[];
+  pendingVisit?: PendingVisitAction;
+  conversationId?: string;
+  title?: string;
 }
 
 export interface ConfirmedMapPlace {
   googlePlaceId: string;
   name?: string;
+}
+
+export interface AssistantChatOptions {
+  conversationId?: string | null;
+  confirmedMapPlace?: ConfirmedMapPlace;
+  confirmedCompanions?: CompanionNameResolution[];
+  pendingVisit?: PendingVisitAction;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -37,7 +66,7 @@ export class AssistantService {
   chat(
     messages: ChatMessage[],
     photoKeys: string[] = [],
-    confirmedMapPlace?: ConfirmedMapPlace,
+    options: AssistantChatOptions = {},
     locale?: 'en' | 'es',
   ) {
     return this.api.post<AssistantChatResponse>('/assistant/chat', {
@@ -46,7 +75,10 @@ export class AssistantService {
         content: message.content,
       })),
       photoKeys: photoKeys.length ? photoKeys : undefined,
-      confirmedMapPlace,
+      conversationId: options.conversationId ?? undefined,
+      confirmedMapPlace: options.confirmedMapPlace,
+      confirmedCompanions: options.confirmedCompanions,
+      pendingVisit: options.pendingVisit,
       locale,
     });
   }

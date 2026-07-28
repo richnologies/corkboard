@@ -12,7 +12,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content class="page-shell">
+<ion-content class="page-shell no-tab-inset">
   @if (loading()) {
     <div class="loading-center"><ion-spinner /></div>
   } @else if (history(); as h) {
@@ -215,7 +215,7 @@
       </ion-toolbar>
     </ion-header>
     <ion-content class="page-shell visit-modal">
-      <form [formGroup]="visitForm" (ngSubmit)="saveVisit()">
+      <form id="visitForm" [formGroup]="visitForm" (ngSubmit)="saveVisit()">
         <ion-list lines="none">
           <ion-item>
             <ion-input
@@ -357,33 +357,35 @@
           </ion-list>
         }
 
-        <ion-button expand="block" type="submit" [disabled]="savingVisit() || processingPhotos() || deletingVisit()" class="save-visit-btn">
-          @if (savingVisit()) {
-            <ion-spinner name="crescent" />
-          } @else {
-            {{ (isEditingVisit() ? 'item.saveVisitChanges' : 'item.saveVisit') | translate }}
-          }
-        </ion-button>
-
-        @if (isEditingVisit()) {
-          <ion-button
-            expand="block"
-            fill="outline"
-            color="danger"
-            type="button"
-            class="delete-visit-btn"
-            [disabled]="savingVisit() || deletingVisit()"
-            (click)="confirmDeleteVisitForEditing()"
-          >
-            @if (deletingVisit()) {
-              <ion-spinner name="crescent" />
-            } @else {
-              {{ 'item.deleteVisit' | translate }}
-            }
-          </ion-button>
-        }
       </form>
     </ion-content>
+    <ion-footer class="form-sticky-footer">
+      <ion-button expand="block" type="submit" form="visitForm" [disabled]="savingVisit() || processingPhotos() || deletingVisit()" class="save-visit-btn">
+        @if (savingVisit()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ (isEditingVisit() ? 'item.saveVisitChanges' : 'item.saveVisit') | translate }}
+        }
+      </ion-button>
+
+      @if (isEditingVisit()) {
+        <ion-button
+          expand="block"
+          fill="outline"
+          color="danger"
+          type="button"
+          class="delete-visit-btn"
+          [disabled]="savingVisit() || deletingVisit()"
+          (click)="confirmDeleteVisitForEditing()"
+        >
+          @if (deletingVisit()) {
+            <ion-spinner name="crescent" />
+          } @else {
+            {{ 'item.deleteVisit' | translate }}
+          }
+        </ion-button>
+      }
+    </ion-footer>
   </ng-template>
 </ion-modal>
 

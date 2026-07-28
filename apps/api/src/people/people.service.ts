@@ -9,9 +9,13 @@ import { Model, Types } from 'mongoose';
 import {
   PersonType,
   SourceType,
+  foldPersonName,
   normalizePersonName,
   personNameKey,
   personTypeFromSourceType,
+  rankSimilarPersonNames,
+  Person as PersonEntity,
+  CompanionNameResolution,
 } from '@org/domain';
 import { Item, ItemDocument } from '../items/item.schema.js';
 import { Experience, ExperienceDocument } from '../experiences/experience.schema.js';
@@ -19,9 +23,26 @@ import { Person, PersonDocument } from './person.schema.js';
 import {
   CreatePersonDto,
   PersonQueryDto,
+  PersonSuggestQueryDto,
   UpdatePersonDto,
 } from './dto/person.dto.js';
 import { mapPerson } from './people.mapper.js';
+
+export interface CompanionPrepareAmbiguity {
+  query: string;
+  candidates: PersonEntity[];
+}
+
+export type CompanionPrepareResult =
+  | {
+      ok: true;
+      companionPersonIds: string[];
+      companions: string[];
+    }
+  | {
+      ok: false;
+      ambiguities: CompanionPrepareAmbiguity[];
+    };
 
 export interface ResolvedSourceInput {
   type: SourceType;
@@ -76,6 +97,88 @@ export class PeopleService implements OnModuleInit {
       person,
       stats.get(person.id) ?? { sourceCount: 0, visitCount: 0 },
     );
+  }
+
+  async suggest(userId: string, name: string) {
+    const normalized = normalizePersonName(name);
+    if (!normalized) {
+      return { exact: null, similar: [] };
+    }
+
+    const ownerId = new Types.ObjectId(userId);
+    const exactDoc = await this.personModel
+      .findOne({ ownerId, nameKey: personNameKey(normalized) })
+      .exec();
+
+    const people = await this.personModel.find({ ownerId }).sort({ name: 1 }).exec();
+    const stats = await this.loadUsageStats(
+      userId,
+      people.map((person) => person.id),
+    );
+    const mapped = people.map((person) =>
+      mapPerson(person, stats.get(person.id) ?? { sourceCount: 0, visitCount: 0 }),
+    );
+
+    const similar = rankSimilarPersonNames(normalized, mapped).filter(
+      (person) => person.id !== exactDoc?.id,
+    );
+
+    return {
+      exact: exactDoc
+        ? mapPerson(
+            exactDoc,
+            stats.get(exactDoc.id) ?? { sourceCount: 0, visitCount: 0 },
+          )
+        : null,
+      similar,
+    };
+  }
+
+  async getActivity(userId: string, personId: string) {
+    const person = await this.personModel.findById(personId).exec();
+    if (!person || String(person.ownerId) !== userId) {
+      throw new NotFoundException('Person not found');
+    }
+
+    const ownerId = new Types.ObjectId(userId);
+    const personObjectId = person._id;
+
+    const items = await this.itemModel
+      .find({ ownerId, 'source.referrerPersonId': personObjectId })
+      .sort({ name: 1 })
+      .select({ name: 1, category: 1, status: 1 })
+      .exec();
+
+    const experiences = await this.experienceModel
+      .find({ authorId: ownerId, companionPersonIds: personObjectId })
+      .sort({ visitedAt: -1 })
+      .select({ itemId: 1, visitedAt: 1, rating: 1 })
+      .exec();
+
+    const itemIds = [...new Set(experiences.map((exp) => String(exp.itemId)))];
+    const itemDocs = itemIds.length
+      ? await this.itemModel
+          .find({ _id: { $in: itemIds.map((id) => new Types.ObjectId(id)) } })
+          .select({ name: 1 })
+          .exec()
+      : [];
+    const itemNames = new Map(itemDocs.map((item) => [item.id, item.name]));
+
+    return {
+      recommendations: items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        status: item.status,
+      })),
+      visits: experiences.map((exp) => ({
+        id: exp.id,
+        itemId: String(exp.itemId),
+        itemName: itemNames.get(String(exp.itemId)) ?? '',
+        visitedAt: exp.visitedAt.toISOString(),
+        rating: exp.rating,
+      })),
+    };
   }
 
   async findByIds(userId: string, personIds: string[]) {
@@ -203,6 +306,74 @@ export class PeopleService implements OnModuleInit {
       nameKey: personNameKey(normalized),
       type,
     });
+  }
+
+  async prepareCompanions(
+    userId: string,
+    names: string[],
+    resolutions: CompanionNameResolution[] = [],
+  ): Promise<CompanionPrepareResult> {
+    if (!names.length) {
+      return { ok: true, companionPersonIds: [], companions: [] };
+    }
+
+    const resolutionByKey = new Map(
+      resolutions.map((resolution) => [
+        foldPersonName(resolution.query),
+        resolution,
+      ]),
+    );
+
+    const people = await this.findAllForUser(userId);
+    const companionPersonIds: string[] = [];
+    const companions: string[] = [];
+    const ambiguities: CompanionPrepareAmbiguity[] = [];
+
+    for (const rawName of names) {
+      const name = normalizePersonName(rawName);
+      if (!name) continue;
+
+      const resolution = resolutionByKey.get(foldPersonName(name));
+      if (resolution?.personId) {
+        const [person] = await this.findByIds(userId, [resolution.personId]);
+        if (!person) {
+          throw new BadRequestException(`Companion "${name}" was not found`);
+        }
+        companionPersonIds.push(person.id);
+        companions.push(person.name);
+        continue;
+      }
+      if (resolution?.createNew) {
+        const person = await this.findOrCreate(userId, name);
+        companionPersonIds.push(person.id);
+        companions.push(person.name);
+        continue;
+      }
+
+      const nameKey = personNameKey(name);
+      const exact = people.find((person) => personNameKey(person.name) === nameKey);
+      if (exact) {
+        companionPersonIds.push(exact.id);
+        companions.push(exact.name);
+        continue;
+      }
+
+      const similar = rankSimilarPersonNames(name, people);
+      if (similar.length) {
+        ambiguities.push({ query: name, candidates: similar });
+        continue;
+      }
+
+      const person = await this.findOrCreate(userId, name);
+      companionPersonIds.push(person.id);
+      companions.push(person.name);
+    }
+
+    if (ambiguities.length) {
+      return { ok: false, ambiguities };
+    }
+
+    return { ok: true, companionPersonIds, companions };
   }
 
   async resolveSourceForWrite(

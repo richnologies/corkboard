@@ -14,14 +14,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { logOutOutline, peopleOutline, personCircleOutline } from 'ionicons/icons';
+import { logOutOutline, peopleOutline, personCircleOutline, chevronForwardOutline } from 'ionicons/icons';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { AppLocale, isAppLocale } from '../../core/i18n/locale';
 
-addIcons({ logOutOutline, peopleOutline, personCircleOutline });
+addIcons({ logOutOutline, peopleOutline, personCircleOutline, chevronForwardOutline });
 
 @Component({
   selector: 'app-profile',

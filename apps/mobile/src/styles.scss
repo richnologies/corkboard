@@ -17,12 +17,16 @@ body {
   --padding-start: 16px;
   --padding-end: 16px;
   --padding-top: 8px;
-  --padding-bottom: 32px;
+  --padding-bottom: calc(var(--page-bottom-inset) + 16px);
 
   &.map-mode {
     --padding-start: 12px;
     --padding-end: 12px;
-    --padding-bottom: 88px;
+    --padding-bottom: calc(var(--page-bottom-inset) + 24px);
+  }
+
+  &.no-tab-inset {
+    --padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   }
 }
 
@@ -54,9 +58,20 @@ ion-tab-bar {
   padding-top: 4px;
 }
 
+ion-fab {
+  margin-bottom: var(--fab-bottom-offset);
+}
+
 ion-fab-button {
   --box-shadow: 0 8px 28px rgba(37, 99, 235, 0.38);
   --background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+ion-button[fill='clear'] {
+  --padding-start: 10px;
+  --padding-end: 10px;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
 }
 
 ion-button {
@@ -228,5 +243,15 @@ ion-item {
 
   ion-spinner {
     --color: var(--ion-color-primary);
+  }
+}
+
+.form-sticky-footer {
+  background: var(--ion-toolbar-background);
+  border-top: 1px solid var(--cork-border);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+
+  ion-button {
+    margin: 0;
   }
 }

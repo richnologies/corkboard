@@ -2,6 +2,37 @@ export const ASSISTANT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'list_visited_places',
+      description:
+        'List places the user has visited, optionally filtered by city, country, or category. Use for questions like "restaurants I went to in Brussels" — never guess location from the place name.',
+      parameters: {
+        type: 'object',
+        properties: {
+          city: {
+            type: 'string',
+            description:
+              'City or area to filter by, e.g. "Brussels", "Bruselas", "Madrid"',
+          },
+          country: {
+            type: 'string',
+            description: 'Country to filter by, e.g. "Belgium", "Spain"',
+          },
+          category: {
+            type: 'string',
+            enum: ['restaurant', 'cafe', 'bar', 'hotel', 'other'],
+            description: 'Optional place category filter',
+          },
+          query: {
+            type: 'string',
+            description: 'Optional place name keyword',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'search_places',
       description:
         'Search saved places by name or keyword. Supports partial names (e.g. "dish" for "Dishoom") and ignores filler words like "restaurant".',
@@ -9,8 +40,47 @@ export const ASSISTANT_TOOLS = [
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Place name or search term' },
+          city: {
+            type: 'string',
+            description: 'Optional city filter',
+          },
+          country: {
+            type: 'string',
+            description: 'Optional country filter',
+          },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'find_visits_by_date',
+      description:
+        'Find logged visits on a specific date or date range. Use for "what restaurant did I go to last Wednesday?", "where did I eat yesterday?", etc. Prefer this over get_last_visit for date-based recall.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fromDate: {
+            type: 'string',
+            description: 'Start date in YYYY-MM-DD',
+          },
+          toDate: {
+            type: 'string',
+            description: 'End date in YYYY-MM-DD (defaults to fromDate)',
+          },
+          relativeDate: {
+            type: 'string',
+            description:
+              'Natural date phrase to resolve server-side, e.g. "yesterday", "last wednesday", "el miercoles pasado"',
+          },
+          category: {
+            type: 'string',
+            enum: ['restaurant', 'cafe', 'bar', 'hotel', 'other'],
+            description: 'Optional place category filter',
+          },
+        },
       },
     },
   },
@@ -172,13 +242,22 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'search_visits',
       description:
-        'Semantic and keyword search across logged visits. Finds matches in visit notes, companions, ratings, and AI-generated photo descriptions — even fuzzy or poorly worded queries.',
+        'Semantic and keyword search across logged visits. Finds matches in visit notes, companions, ratings, and AI-generated photo descriptions — even fuzzy or poorly worded queries. For city-based questions ("restaurants in Brussels"), prefer list_visited_places instead.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
             description: 'Natural language search query about past visits',
+          },
+          city: {
+            type: 'string',
+            description:
+              'Optional city filter — only return visits to places in this city',
+          },
+          country: {
+            type: 'string',
+            description: 'Optional country filter',
           },
         },
         required: ['query'],

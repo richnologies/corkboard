@@ -179,10 +179,13 @@ export class ItemQueryDto {
   @IsString()
   q?: string;
 
-  /** @deprecated Use q */
   @IsOptional()
   @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
 }
 
 export class PresignPhotoDto {

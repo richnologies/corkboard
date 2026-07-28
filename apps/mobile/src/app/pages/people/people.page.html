@@ -70,36 +70,123 @@
       </ion-toolbar>
     </ion-header>
     <ion-content class="page-shell">
-      <form [formGroup]="form" (ngSubmit)="savePerson()">
-        <ion-list lines="none">
-          <ion-item>
-            <ion-input
-              [label]="'people.name' | translate"
-              labelPlacement="stacked"
-              formControlName="name"
-            />
-          </ion-item>
-          <ion-item>
-            <ion-select
-              [label]="'people.type' | translate"
-              labelPlacement="stacked"
-              formControlName="type"
-            >
-              @for (type of personTypes; track type) {
-                <ion-select-option [value]="type">{{ 'personType.' + type | translate }}</ion-select-option>
-              }
-            </ion-select>
-          </ion-item>
-        </ion-list>
+      @if (disambiguationOpen()) {
+        <div class="disambiguation">
+          <p class="disambiguation-title">
+            {{ 'people.disambiguationTitle' | translate: { name: form.controls.name.value.trim() } }}
+          </p>
+          <div class="similar-list">
+            @for (person of similarPeople(); track person.id) {
+              <ion-button expand="block" fill="outline" (click)="pickSimilar(person)">
+                {{ person.name }}
+                <span class="type-inline">{{ 'personType.' + person.type | translate }}</span>
+              </ion-button>
+            }
+          </div>
+          <ion-button
+            expand="block"
+            fill="solid"
+            (click)="confirmCreateNew()"
+            [disabled]="saving()"
+          >
+            @if (saving()) {
+              <ion-spinner name="crescent" />
+            } @else {
+              {{ 'people.createAnyway' | translate: { name: form.controls.name.value.trim() } }}
+            }
+          </ion-button>
+          <ion-button expand="block" fill="clear" (click)="cancelDisambiguation()">
+            {{ 'common.back' | translate }}
+          </ion-button>
+        </div>
+      } @else {
+        <form [formGroup]="form" (ngSubmit)="savePerson()">
+          <ion-list lines="none">
+            <ion-item>
+              <ion-input
+                [label]="'people.name' | translate"
+                labelPlacement="stacked"
+                formControlName="name"
+              />
+            </ion-item>
+            <ion-item>
+              <ion-select
+                [label]="'people.type' | translate"
+                labelPlacement="stacked"
+                formControlName="type"
+              >
+                @for (type of personTypes; track type) {
+                  <ion-select-option [value]="type">{{ 'personType.' + type | translate }}</ion-select-option>
+                }
+              </ion-select>
+            </ion-item>
+          </ion-list>
 
-        <ion-button expand="block" type="submit" [disabled]="saving() || form.invalid">
-          @if (saving()) {
-            <ion-spinner name="crescent" />
-          } @else {
-            {{ 'common.save' | translate }}
+          @if (editingPerson(); as person) {
+            <section class="activity-section">
+              <p class="activity-stats">
+                {{ 'people.stats' | translate: { sources: person.sourceCount, visits: person.visitCount } }}
+              </p>
+
+              @if (activityLoading()) {
+                <div class="loading-center"><ion-spinner name="crescent" /></div>
+              } @else if (activity(); as data) {
+                <div class="activity-block">
+                  <h3>{{ 'people.recommendationsTitle' | translate }}</h3>
+                  @if (data.recommendations.length) {
+                    <ion-list lines="none">
+                      @for (item of data.recommendations; track item.id) {
+                        <ion-item button class="activity-item" (click)="openItem(item.id)">
+                          <ion-label>
+                            <h4>{{ item.name }}</h4>
+                            <p>
+                              {{ 'category.' + item.category | translate }} ·
+                              {{ 'status.' + item.status | translate }}
+                            </p>
+                          </ion-label>
+                        </ion-item>
+                      }
+                    </ion-list>
+                  } @else {
+                    <p class="activity-empty">{{ 'people.noRecommendations' | translate }}</p>
+                  }
+                </div>
+
+                <div class="activity-block">
+                  <h3>{{ 'people.visitsTitle' | translate }}</h3>
+                  @if (data.visits.length) {
+                    <ion-list lines="none">
+                      @for (visit of data.visits; track visit.id) {
+                        <ion-item button class="activity-item" (click)="openItem(visit.itemId)">
+                          <ion-label>
+                            <h4>{{ visit.itemName }}</h4>
+                            <p>
+                              {{ visit.visitedAt | date: 'mediumDate' }}
+                              @if (visitRating(visit); as rating) {
+                                · {{ rating }}
+                              }
+                            </p>
+                          </ion-label>
+                        </ion-item>
+                      }
+                    </ion-list>
+                  } @else {
+                    <p class="activity-empty">{{ 'people.noVisits' | translate }}</p>
+                  }
+                </div>
+              }
+            </section>
           }
-        </ion-button>
-      </form>
+
+          <ion-button expand="block" type="submit" [disabled]="saving() || form.invalid">
+            @if (saving()) {
+              <ion-spinner name="crescent" />
+            } @else {
+              {{ 'common.save' | translate }}
+            }
+          </ion-button>
+        </form>
+      }
     </ion-content>
   </ng-template>
 </ion-modal>

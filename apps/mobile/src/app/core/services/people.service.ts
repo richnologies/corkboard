@@ -1,5 +1,10 @@
 import { Injectable, inject } from '@angular/core';
-import { Person, PersonType } from '@org/domain';
+import {
+  Person,
+  PersonActivity,
+  PersonSuggestResult,
+  PersonType,
+} from '@org/domain';
 import { ApiService } from './api.service';
 
 export interface CreatePersonPayload {
@@ -23,6 +28,14 @@ export class PeopleService {
 
   get(id: string) {
     return this.api.get<Person>(`/people/${id}`);
+  }
+
+  suggest(name: string) {
+    return this.api.get<PersonSuggestResult>('/people/suggest', { name });
+  }
+
+  getActivity(id: string) {
+    return this.api.get<PersonActivity>(`/people/${id}/activity`);
   }
 
   create(payload: CreatePersonPayload) {

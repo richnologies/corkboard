@@ -4,12 +4,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Item, ItemCategory, ItemStatus } from '@org/domain';
+import { Item, ItemCategory, ItemStatus, CompanionAmbiguity, Person, formatLocationSummary, locationMatchesQuery, formatIsoDateUtc, resolveRelativeVisitDate, startOfUtcDay } from '@org/domain';
 import { ItemsService } from '../items/items.service.js';
 import { ExperiencesService } from '../experiences/experiences.service.js';
 import { ExperienceSearchService } from '../experiences/experience-search.service.js';
 import { PeopleService } from '../people/people.service.js';
 import { PlacesService } from '../places/places.service.js';
+import { ConversationsService } from '../conversations/conversations.service.js';
 import { AssistantChatDto } from './dto/assistant-chat.dto.js';
 import { ASSISTANT_TOOLS } from './assistant.tools.js';
 
@@ -37,10 +38,25 @@ export interface MapPlaceCandidate {
   category: string;
 }
 
+export interface PendingVisitAction {
+  type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
+  placeId?: string;
+  googlePlaceId?: string;
+  experienceId?: string;
+  visitedAt?: string;
+  overallRating?: number;
+  notes?: string;
+  companions: string[];
+}
+
 export interface AssistantChatResult {
   message: string;
   relatedItems: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  companionAmbiguities?: CompanionAmbiguity[];
+  pendingVisit?: PendingVisitAction;
+  conversationId?: string;
+  title?: string;
 }
 
 @Injectable()
@@ -52,6 +68,7 @@ export class AssistantService {
     private readonly experienceSearchService: ExperienceSearchService,
     private readonly peopleService: PeopleService,
     private readonly placesService: PlacesService,
+    private readonly conversationsService: ConversationsService,
   ) {}
 
   async chat(userId: string, dto: AssistantChatDto): Promise<AssistantChatResult> {
@@ -64,11 +81,25 @@ export class AssistantService {
       );
     }
 
+    const skipUserMessage = !!(
+      dto.pendingVisit && dto.confirmedCompanions?.length
+    );
+
+    let result: AssistantChatResult;
     if (dto.confirmedMapPlace?.googlePlaceId) {
-      return this.resumeAfterMapPlaceConfirmation(userId, dto, apiKey, model);
+      result = await this.resumeAfterMapPlaceConfirmation(
+        userId,
+        dto,
+        apiKey,
+        model,
+      );
+    } else if (skipUserMessage) {
+      result = await this.resumeAfterCompanionConfirmation(userId, dto);
+    } else {
+      result = await this.runAssistantLoop(userId, dto, apiKey, model);
     }
 
-    return this.runAssistantLoop(userId, dto, apiKey, model);
+    return this.persistAndReturn(userId, dto, result, skipUserMessage);
   }
 
   private async runAssistantLoop(
@@ -80,13 +111,20 @@ export class AssistantService {
   ): Promise<AssistantChatResult> {
     let relatedItems = new Map<string, string>();
     let placeCandidates: MapPlaceCandidate[] = [];
-    const today = new Date().toISOString().slice(0, 10);
+    let companionAmbiguities: CompanionAmbiguity[] = [];
+    let pendingVisit: PendingVisitAction | undefined;
+    const locale = dto.locale ?? 'en';
+    const todayDate = startOfUtcDay(new Date());
+    const today = formatIsoDateUtc(todayDate);
+    const weekdayLabel = todayDate.toLocaleDateString(
+      locale === 'es' ? 'es-ES' : 'en-US',
+      { weekday: 'long', timeZone: 'UTC' },
+    );
     const photoNote =
       dto.photoKeys?.length ?
         `The user attached ${dto.photoKeys.length} photo(s) with this message. If you log a visit, they should be saved with that visit.`
       : 'The user did not attach photos with this message.';
 
-    const locale = dto.locale ?? 'en';
     const replyLanguage =
       locale === 'es' ? 'Spanish' : 'English';
 
@@ -94,11 +132,15 @@ export class AssistantService {
       {
         role: 'system',
         content: [
-          'You are Malviviendo, a friendly personal food & places assistant.',
+          'You are Ambrosio, Malviviendo\'s friendly personal food & places assistant.',
           'The user tracks restaurants and places they visit, with ratings, companions, and photos.',
-          `Today is ${today}. Interpret relative dates like "yesterday" accordingly.`,
+          `Today is ${weekdayLabel}, ${today} (YYYY-MM-DD). Interpret relative dates like "yesterday" or "last Wednesday" accordingly.`,
+          'For questions about what/where the user ate on a specific day ("last Wednesday", "ayer", "el miércoles pasado"), use find_visits_by_date with relativeDate or an ISO fromDate. Never use get_last_visit unless asking about one named place.',
+          'get_last_visit only answers when the user last went to a specific saved place by name — not for date-based recall.',
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
           'Use tools to look up real data before answering — never invent visits or places.',
+          'For questions about where the user has been (city, country, neighborhood), use list_visited_places with a city or country filter. Never infer location from the place name alone.',
+          'If list_visited_places returns places without a saved city, say so and suggest adding location in the place details.',
           'Prefer search_visits for questions about companions, visit notes, food/atmosphere memories, or fuzzy visit recall.',
           'Use search_places or get_last_visit when the user names a specific saved place.',
           'When a place is not saved yet: search_places first, then search_google_places if needed.',
@@ -108,6 +150,8 @@ export class AssistantService {
           'Only call create_place_and_log_visit when the user is reporting a new visit they went on.',
           'Before calling log_visit or create_place_and_log_visit, you must have ALL of: when (visitedAt), overall rating (0-10), and companions (use an empty array if they went alone).',
           'If any of those are missing, ask the user in one friendly message — never guess a date, never default a rating, never log until they answer.',
+          'Before logging companions by name, call search_people for each name. Use the exact saved name when there is a clear match.',
+          'If a companion name is ambiguous (e.g. "Pi" vs "Pili"), the app will ask the user to pick — do not create a new person until they confirm.',
           'When several saved places match a name, list them and ask the user to clarify.',
           'When logging a visit to an existing saved place, use log_visit.',
           'When the user wants to change, fix, or correct an existing visit, use search_visits or get_last_visit to find it, then update_visit. Never use log_visit or create_place_and_log_visit for edits.',
@@ -144,6 +188,8 @@ export class AssistantService {
 
         const roundRelatedItems = new Map<string, string>();
         let roundPlaceCandidates: MapPlaceCandidate[] = [];
+        let roundCompanionAmbiguities: CompanionAmbiguity[] = [];
+        let roundPendingVisit: PendingVisitAction | undefined;
         for (const toolCall of choice.tool_calls) {
           let result: unknown;
           try {
@@ -161,6 +207,10 @@ export class AssistantService {
               error instanceof Error ? error.message : 'Tool call failed';
             result = { error: message };
           }
+          if (this.isCompanionAmbiguityResult(result)) {
+            roundCompanionAmbiguities = result.companionAmbiguities;
+            roundPendingVisit = result.pendingVisit;
+          }
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -171,6 +221,16 @@ export class AssistantService {
         relatedItems = roundRelatedItems;
         if (roundPlaceCandidates.length) {
           placeCandidates = roundPlaceCandidates;
+        }
+        if (roundCompanionAmbiguities.length) {
+          companionAmbiguities = roundCompanionAmbiguities;
+          pendingVisit = roundPendingVisit;
+          return this.companionAmbiguityResponse(
+            companionAmbiguities,
+            pendingVisit!,
+            relatedItems,
+            locale,
+          );
         }
         continue;
       }
@@ -239,8 +299,12 @@ export class AssistantService {
     >;
 
     switch (toolCall.function.name) {
+      case 'list_visited_places':
+        return this.toolListVisitedPlaces(userId, args, relatedItems);
       case 'search_places':
-        return this.toolSearchPlaces(userId, String(args['query'] ?? ''), relatedItems);
+        return this.toolSearchPlaces(userId, args, relatedItems);
+      case 'find_visits_by_date':
+        return this.toolFindVisitsByDate(userId, args, relatedItems);
       case 'get_last_visit':
         return this.toolGetLastVisit(
           userId,
@@ -267,7 +331,7 @@ export class AssistantService {
       case 'update_visit':
         return this.toolUpdateVisit(userId, args, relatedItems);
       case 'search_visits':
-        return this.toolSearchVisits(userId, String(args['query'] ?? ''), relatedItems);
+        return this.toolSearchVisits(userId, args, relatedItems);
       case 'search_people':
         return this.toolSearchPeople(userId, String(args['query'] ?? ''));
       default:
@@ -376,12 +440,30 @@ export class AssistantService {
 
     const { visitedAt, overallRating, companions, notes } = validated;
 
+    const companionResult = await this.peopleService.prepareCompanions(
+      userId,
+      companions,
+    );
+    if (!companionResult.ok) {
+      return this.companionAmbiguityToolResult(
+        companionResult.ambiguities,
+        {
+          type: 'create_place_and_log_visit',
+          googlePlaceId,
+          visitedAt,
+          overallRating,
+          notes,
+          companions,
+        },
+      );
+    }
+
     const experience = await this.experiencesService.create(
       userId,
       place.item.id,
       {
         visitedAt,
-        companions,
+        companionPersonIds: companionResult.companionPersonIds,
         notes,
         rating: {
           food: overallRating,
@@ -481,12 +563,80 @@ export class AssistantService {
     return { item, created: true };
   }
 
-  private async toolSearchPlaces(
+  private async toolListVisitedPlaces(
     userId: string,
-    query: string,
+    args: Record<string, unknown>,
     relatedItems: Map<string, string>,
   ) {
-    const places = await this.itemsService.findAll(userId, { q: query });
+    const city = args['city'] ? String(args['city']).trim() : undefined;
+    const country = args['country'] ? String(args['country']).trim() : undefined;
+    const query = args['query'] ? String(args['query']).trim() : undefined;
+    const categoryRaw = args['category'] ? String(args['category']) : undefined;
+    const category = categoryRaw
+      ? (Object.values(ItemCategory).includes(categoryRaw as ItemCategory)
+          ? (categoryRaw as ItemCategory)
+          : undefined)
+      : undefined;
+
+    if (!city && !country && !query && !category) {
+      return {
+        error:
+          'Provide at least one filter: city, country, category, or query.',
+      };
+    }
+
+    const places = await this.itemsService.findVisitedPlaces(userId, {
+      city,
+      country,
+      category,
+      q: query,
+    });
+
+    for (const place of places.slice(0, 12)) {
+      relatedItems.set(place.id, place.name);
+    }
+
+    const withoutLocation = places.filter(
+      (place) => !formatLocationSummary(place.location),
+    ).length;
+
+    return {
+      count: places.length,
+      withoutLocationCount: withoutLocation,
+      places: places.slice(0, 12).map((place) => this.placeSummary(place)),
+      message:
+        withoutLocation && (city || country)
+          ? `${withoutLocation} visited place(s) have no saved city — they are excluded from this location filter.`
+          : undefined,
+    };
+  }
+
+  private async toolSearchPlaces(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+  ) {
+    const query = String(args['query'] ?? '').trim();
+    if (!query) {
+      return { error: 'query is required' };
+    }
+
+    const city = args['city'] ? String(args['city']).trim() : undefined;
+    const country = args['country'] ? String(args['country']).trim() : undefined;
+
+    let places = await this.itemsService.findAll(userId, { q: query });
+
+    if (city) {
+      places = places.filter((place) =>
+        locationMatchesQuery(place.location, city),
+      );
+    }
+    if (country) {
+      places = places.filter((place) =>
+        locationMatchesQuery(place.location, country),
+      );
+    }
+
     const limited = places.slice(0, 4);
     for (const place of limited) {
       relatedItems.set(place.id, place.name);
@@ -494,6 +644,83 @@ export class AssistantService {
     return {
       count: places.length,
       places: limited.map((place) => this.placeSummary(place)),
+    };
+  }
+
+  private async toolFindVisitsByDate(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+  ) {
+    let fromDate = args['fromDate'] ? String(args['fromDate']).trim() : undefined;
+    let toDate = args['toDate'] ? String(args['toDate']).trim() : undefined;
+    const relativeDate = args['relativeDate']
+      ? String(args['relativeDate']).trim()
+      : undefined;
+    const categoryRaw = args['category'] ? String(args['category']) : undefined;
+    const category = categoryRaw
+      ? (Object.values(ItemCategory).includes(categoryRaw as ItemCategory)
+          ? (categoryRaw as ItemCategory)
+          : undefined)
+      : undefined;
+
+    if (relativeDate) {
+      const resolved = resolveRelativeVisitDate(relativeDate);
+      if (!resolved) {
+        return {
+          error: `Could not parse date phrase "${relativeDate}". Use YYYY-MM-DD in fromDate instead.`,
+        };
+      }
+      fromDate = resolved.fromDate;
+      toDate = resolved.toDate;
+    }
+
+    if (!fromDate) {
+      return { error: 'Provide fromDate (YYYY-MM-DD) or relativeDate.' };
+    }
+    toDate = toDate ?? fromDate;
+
+    let visits = await this.experiencesService.findForCalendar(
+      userId,
+      fromDate,
+      toDate,
+    );
+
+    if (category) {
+      const filtered = [];
+      for (const visit of visits) {
+        try {
+          const item = await this.itemsService.findOne(userId, visit.itemId);
+          if (item.category === category) filtered.push(visit);
+        } catch {
+          continue;
+        }
+      }
+      visits = filtered;
+    }
+
+    for (const visit of visits.slice(0, 12)) {
+      relatedItems.set(visit.itemId, visit.itemName);
+    }
+
+    return {
+      fromDate,
+      toDate,
+      count: visits.length,
+      visits: visits.map((visit) => ({
+        experienceId: visit.id,
+        place: visit.itemName,
+        itemId: visit.itemId,
+        visitedAt: visit.visitedAt,
+        companions: visit.companions ?? [],
+        notes: visit.notes,
+        overallRating: visit.rating?.overall,
+        photoCount: visit.photoCount,
+      })),
+      message:
+        visits.length === 0
+          ? `No visits logged between ${fromDate} and ${toDate}.`
+          : undefined,
     };
   }
 
@@ -564,7 +791,22 @@ export class AssistantService {
       updates['notes'] = String(args['notes']);
     }
     if (Array.isArray(args['companions'])) {
-      updates['companions'] = args['companions'].map(String);
+      const companionNames = args['companions'].map(String);
+      const companionResult = await this.peopleService.prepareCompanions(
+        userId,
+        companionNames,
+      );
+      if (!companionResult.ok) {
+        return this.companionAmbiguityToolResult(
+          companionResult.ambiguities,
+          {
+            type: 'update_visit',
+            experienceId,
+            companions: companionNames,
+          },
+        );
+      }
+      updates['companionPersonIds'] = companionResult.companionPersonIds;
     }
     if (typeof args['overallRating'] === 'number') {
       const overall = args['overallRating'];
@@ -734,9 +976,27 @@ export class AssistantService {
 
     const { visitedAt, overallRating, companions, notes } = validated;
 
+    const companionResult = await this.peopleService.prepareCompanions(
+      userId,
+      companions,
+    );
+    if (!companionResult.ok) {
+      return this.companionAmbiguityToolResult(
+        companionResult.ambiguities,
+        {
+          type: 'log_visit',
+          placeId: place.id,
+          visitedAt,
+          overallRating,
+          notes,
+          companions,
+        },
+      );
+    }
+
     const experience = await this.experiencesService.create(userId, place.id, {
       visitedAt,
-      companions,
+      companionPersonIds: companionResult.companionPersonIds,
       notes,
       rating: {
         food: overallRating,
@@ -773,10 +1033,39 @@ export class AssistantService {
 
   private async toolSearchVisits(
     userId: string,
-    query: string,
+    args: Record<string, unknown>,
     relatedItems: Map<string, string>,
   ) {
-    const hits = await this.experienceSearchService.search(userId, query, 8);
+    const query = String(args['query'] ?? '').trim();
+    if (!query) {
+      return { error: 'query is required' };
+    }
+
+    const city = args['city'] ? String(args['city']).trim() : undefined;
+    const country = args['country'] ? String(args['country']).trim() : undefined;
+
+    let hits = await this.experienceSearchService.search(userId, query, 12);
+
+    if (city || country) {
+      const filtered: typeof hits = [];
+      for (const hit of hits) {
+        try {
+          const item = await this.itemsService.findOne(
+            userId,
+            hit.experience.itemId,
+          );
+          if (city && !locationMatchesQuery(item.location, city)) continue;
+          if (country && !locationMatchesQuery(item.location, country)) {
+            continue;
+          }
+          filtered.push(hit);
+        } catch {
+          continue;
+        }
+      }
+      hits = filtered;
+    }
+
     const topHits = hits.slice(0, hits.length <= 2 ? hits.length : 1);
     for (const hit of topHits) {
       relatedItems.set(
@@ -786,7 +1075,7 @@ export class AssistantService {
     }
     return {
       count: hits.length,
-      visits: hits.map((hit) => ({
+      visits: hits.slice(0, 8).map((hit) => ({
         experienceId: hit.experience.id,
         place: hit.itemName,
         itemId: hit.experience.itemId,
@@ -847,16 +1136,19 @@ export class AssistantService {
         id: place.id,
         name: place.name,
         category: place.category,
+        location: formatLocationSummary(place.location) ?? null,
         latestVisit: place.latestVisit?.visitedAt,
       })),
     };
   }
 
   private placeSummary(place: Item & { latestVisit?: { visitedAt: string } }) {
+    const location = formatLocationSummary(place.location);
     return {
       id: place.id,
       name: place.name,
       category: place.category,
+      location: location ?? null,
       latestVisit: place.latestVisit?.visitedAt,
     };
   }
@@ -917,6 +1209,14 @@ export class AssistantService {
         dto.photoKeys ?? [],
         relatedItems,
       );
+      if (this.isCompanionAmbiguityResult(result)) {
+        return this.companionAmbiguityResponse(
+          result.companionAmbiguities,
+          result.pendingVisit,
+          relatedItems,
+          locale,
+        );
+      }
       if (typeof result === 'object' && result !== null && 'error' in result) {
         throw new BadRequestException(String(result.error));
       }
@@ -1259,5 +1559,251 @@ export class AssistantService {
     } catch {
       return {};
     }
+  }
+
+  private isCompanionAmbiguityResult(
+    result: unknown,
+  ): result is {
+    companionAmbiguities: CompanionAmbiguity[];
+    pendingVisit: PendingVisitAction;
+  } {
+    return (
+      typeof result === 'object' &&
+      result !== null &&
+      'companionAmbiguities' in result &&
+      Array.isArray((result as { companionAmbiguities: unknown }).companionAmbiguities) &&
+      'pendingVisit' in result
+    );
+  }
+
+  private companionAmbiguityToolResult(
+    ambiguities: { query: string; candidates: Person[] }[],
+    pendingVisit: PendingVisitAction,
+  ) {
+    return {
+      needsInput: true,
+      companionAmbiguities: ambiguities.map((ambiguity) => ({
+        query: ambiguity.query,
+        candidates: ambiguity.candidates.map((person) => ({
+          id: person.id,
+          name: person.name,
+          type: person.type,
+        })),
+      })),
+      pendingVisit,
+      message:
+        'Companion names are ambiguous. The app will ask the user to pick existing people or confirm new ones. Do not create people yet.',
+    };
+  }
+
+  private companionAmbiguityResponse(
+    companionAmbiguities: CompanionAmbiguity[],
+    pendingVisit: PendingVisitAction,
+    relatedItems: Map<string, string>,
+    locale: 'en' | 'es',
+  ): AssistantChatResult {
+    return {
+      message: this.formatCompanionAmbiguityPrompt(companionAmbiguities, locale),
+      relatedItems: [...relatedItems.entries()].map(([id, name]) => ({
+        id,
+        name,
+      })),
+      companionAmbiguities,
+      pendingVisit,
+    };
+  }
+
+  private formatCompanionAmbiguityPrompt(
+    ambiguities: CompanionAmbiguity[],
+    locale: 'en' | 'es',
+  ): string {
+    if (locale === 'es') {
+      if (ambiguities.length === 1) {
+        const name = ambiguities[0].query;
+        return `Antes de guardar la visita, ¿te refieres a alguien que ya tienes como "${name}"? Elige abajo o confirma que quieres crear una persona nueva.`;
+      }
+      return 'Antes de guardar la visita, aclara a quién te refieres con estos nombres. Elige abajo para cada uno.';
+    }
+
+    if (ambiguities.length === 1) {
+      const name = ambiguities[0].query;
+      return `Before I save this visit, did you mean someone you already have as "${name}"? Pick below or confirm a new person.`;
+    }
+    return 'Before I save this visit, please clarify who you mean for these names. Pick an option below for each.';
+  }
+
+  private async resumeAfterCompanionConfirmation(
+    userId: string,
+    dto: AssistantChatDto,
+  ): Promise<AssistantChatResult> {
+    const locale = dto.locale ?? 'en';
+    const pending = dto.pendingVisit!;
+    const resolutions = dto.confirmedCompanions ?? [];
+    const relatedItems = new Map<string, string>();
+    const photoKeys = dto.photoKeys ?? [];
+
+    const companionResult = await this.peopleService.prepareCompanions(
+      userId,
+      pending.companions,
+      resolutions,
+    );
+
+    if (!companionResult.ok) {
+      return this.companionAmbiguityResponse(
+        companionResult.ambiguities.map((ambiguity) => ({
+          query: ambiguity.query,
+          candidates: ambiguity.candidates.map((person) => ({
+            id: person.id,
+            name: person.name,
+            type: person.type,
+          })),
+        })),
+        pending,
+        relatedItems,
+        locale,
+      );
+    }
+
+    const rating =
+      pending.overallRating != null
+        ? {
+            food: pending.overallRating,
+            service: pending.overallRating,
+            atmosphere: pending.overallRating,
+            valueForMoney: pending.overallRating,
+            overall: pending.overallRating,
+          }
+        : undefined;
+
+    if (pending.type === 'update_visit') {
+      if (!pending.experienceId) {
+        throw new BadRequestException('Missing experience for visit update');
+      }
+      const experience = await this.experiencesService.update(
+        userId,
+        pending.experienceId,
+        { companionPersonIds: companionResult.companionPersonIds },
+      );
+      const item = await this.itemsService.getAccessibleItem(
+        userId,
+        String(experience.itemId),
+      );
+      relatedItems.set(item.id, item.name);
+      return {
+        message:
+          locale === 'es'
+            ? `Listo, actualicé los acompañantes de tu visita a ${item.name}.`
+            : `Done — I updated the companions on your visit to ${item.name}.`,
+        relatedItems: [...relatedItems.entries()].map(([id, name]) => ({
+          id,
+          name,
+        })),
+      };
+    }
+
+    let placeId = pending.placeId;
+    let placeName = '';
+
+    if (pending.type === 'create_place_and_log_visit') {
+      if (!pending.googlePlaceId) {
+        throw new BadRequestException('Missing place for visit');
+      }
+      const place = await this.ensurePlaceFromGoogle(
+        userId,
+        pending.googlePlaceId,
+        relatedItems,
+        { forNewVisit: true },
+      );
+      if ('error' in place) {
+        throw new BadRequestException(place.error);
+      }
+      placeId = place.item.id;
+      placeName = place.item.name;
+    } else if (pending.type === 'log_visit') {
+      if (!pending.placeId) {
+        throw new BadRequestException('Missing place for visit');
+      }
+      const item = await this.itemsService.getAccessibleItem(userId, pending.placeId);
+      placeId = item.id;
+      placeName = item.name;
+      relatedItems.set(item.id, item.name);
+    }
+
+    if (!placeId || !pending.visitedAt || pending.overallRating == null) {
+      throw new BadRequestException('Incomplete visit details');
+    }
+
+    const experience = await this.experiencesService.create(userId, placeId, {
+      visitedAt: pending.visitedAt,
+      companionPersonIds: companionResult.companionPersonIds,
+      notes: pending.notes,
+      rating: rating!,
+      photos: photoKeys.map((key) => ({ key })),
+    });
+
+    const companionText =
+      companionResult.companions.length
+        ? locale === 'es'
+          ? ` con ${companionResult.companions.join(', ')}`
+          : ` with ${companionResult.companions.join(', ')}`
+        : '';
+
+    return {
+      message:
+        locale === 'es'
+          ? `¡Listo! Registré tu visita a ${placeName}${companionText}.`
+          : `Done! I logged your visit to ${placeName}${companionText}.`,
+      relatedItems: [...relatedItems.entries()].map(([id, name]) => ({
+        id,
+        name,
+      })),
+    };
+  }
+
+  private async persistAndReturn(
+    userId: string,
+    dto: AssistantChatDto,
+    result: AssistantChatResult,
+    skipUserMessage: boolean,
+  ): Promise<AssistantChatResult> {
+    const userMessage = skipUserMessage
+      ? null
+      : this.extractLastUserMessage(dto);
+
+    const conversation = await this.conversationsService.appendMessages(
+      userId,
+      dto.conversationId,
+      userMessage,
+      {
+        content: result.message,
+        metadata: {
+          relatedItems: result.relatedItems,
+          placeCandidates: result.placeCandidates,
+          companionAmbiguities: result.companionAmbiguities,
+          pendingVisit: result.pendingVisit,
+        },
+      },
+      userMessage?.content,
+      dto.locale ?? 'en',
+    );
+
+    return {
+      ...result,
+      conversationId: conversation.id,
+      title: conversation.title,
+    };
+  }
+
+  private extractLastUserMessage(dto: AssistantChatDto) {
+    for (let index = dto.messages.length - 1; index >= 0; index--) {
+      const message = dto.messages[index];
+      if (message.role === 'user' && message.content.trim()) {
+        return {
+          content: message.content.trim(),
+          photoKeys: dto.photoKeys,
+        };
+      }
+    }
+    return null;
   }
 }

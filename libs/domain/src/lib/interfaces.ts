@@ -42,6 +42,86 @@ export interface Person {
   updatedAt: string;
 }
 
+export interface PersonRecommendationSummary {
+  id: string;
+  name: string;
+  category: ItemCategory;
+  status: ItemStatus;
+}
+
+export interface PersonVisitSummary {
+  id: string;
+  itemId: string;
+  itemName: string;
+  visitedAt: string;
+  rating?: StructuredRating;
+}
+
+export interface PersonActivity {
+  recommendations: PersonRecommendationSummary[];
+  visits: PersonVisitSummary[];
+}
+
+export interface PersonSuggestResult {
+  exact: Person | null;
+  similar: Person[];
+}
+
+export interface CompanionNameResolution {
+  query: string;
+  personId?: string;
+  createNew?: boolean;
+}
+
+export interface CompanionAmbiguity {
+  query: string;
+  candidates: { id: string; name: string; type: PersonType }[];
+}
+
+export interface ConversationMessageMetadata {
+  relatedItems?: { id: string; name: string }[];
+  placeCandidates?: {
+    index: number;
+    googlePlaceId: string;
+    name: string;
+    address: string;
+    category: string;
+  }[];
+  companionAmbiguities?: CompanionAmbiguity[];
+  pendingVisit?: {
+    type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
+    placeId?: string;
+    googlePlaceId?: string;
+    experienceId?: string;
+    visitedAt?: string;
+    overallRating?: number;
+    notes?: string;
+    companions: string[];
+  };
+  error?: boolean;
+}
+
+export interface ConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  photoKeys?: string[];
+  metadata?: ConversationMessageMetadata;
+  createdAt: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface Conversation extends ConversationSummary {
+  messages: ConversationMessage[];
+}
+
 export interface StructuredRating {
   food?: number;
   service?: number;

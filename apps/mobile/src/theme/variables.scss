@@ -1,6 +1,11 @@
 :root {
   --ion-font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
+  --tab-bar-height: 56px;
+  --touch-target-min: 44px;
+  --page-bottom-inset: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
+  --fab-bottom-offset: calc(var(--page-bottom-inset) + 12px);
+
   --cork-cream: #f0f4fa;
   --cork-surface: #ffffff;
   --cork-brown: #1e40af;

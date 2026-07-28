@@ -15,6 +15,7 @@ import { PeopleService } from './people.service.js';
 import {
   CreatePersonDto,
   PersonQueryDto,
+  PersonSuggestQueryDto,
   UpdatePersonDto,
 } from './dto/person.dto.js';
 
@@ -26,6 +27,16 @@ export class PeopleController {
   @Get()
   findAll(@CurrentUser() user: AuthUser, @Query() query: PersonQueryDto) {
     return this.peopleService.findAllForUser(user.userId, query);
+  }
+
+  @Get('suggest')
+  suggest(@CurrentUser() user: AuthUser, @Query() query: PersonSuggestQueryDto) {
+    return this.peopleService.suggest(user.userId, query.name);
+  }
+
+  @Get(':id/activity')
+  activity(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.peopleService.getActivity(user.userId, id);
   }
 
   @Get(':id')

@@ -101,4 +101,43 @@ export class OpenAiService {
     };
     return data.choices[0]?.message?.content?.trim() ?? '';
   }
+
+  async generateConversationTitle(
+    text: string,
+    locale: 'en' | 'es',
+  ): Promise<string> {
+    this.assertConfigured();
+    const input = text.trim().slice(0, 500);
+    if (!input) return '';
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.chatModel,
+        temperature: 0.3,
+        max_tokens: 24,
+        messages: [
+          {
+            role: 'system',
+            content:
+              locale === 'es'
+                ? 'Genera un título corto (máximo 6 palabras) para esta conversación. Responde solo con el título, sin comillas ni puntuación final.'
+                : 'Generate a short title (max 6 words) for this chat conversation. Reply with only the title, no quotes or trailing punctuation.',
+          },
+          { role: 'user', content: input },
+        ],
+      }),
+    });
+
+    if (!response.ok) return '';
+
+    const data = (await response.json()) as {
+      choices: { message?: { content?: string } }[];
+    };
+    return data.choices[0]?.message?.content?.trim().replace(/^["']|["']$/g, '') ?? '';
+  }
 }

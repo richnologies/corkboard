@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { categoryHasLocation, ItemStatus } from '@org/domain';
+import { categoryHasLocation, ItemStatus, locationMatchesQuery } from '@org/domain';
 import { Item, ItemDocument } from './item.schema.js';
 import { CreateItemDto, ItemQueryDto, UpdateItemDto } from './dto/item.dto.js';
 import { SharingService } from '../sharing/sharing.service.js';
@@ -85,13 +85,18 @@ export class ItemsService implements OnModuleInit {
     }
     if (query.tag) filter.tags = query.tag;
 
-    const search = (query.q ?? query.city)?.trim();
+    if (query.city?.trim()) {
+      filter.$and!.push(this.buildLocationFieldFilter('location.city', query.city));
+    }
+    if (query.country?.trim()) {
+      filter.$and!.push(
+        this.buildLocationFieldFilter('location.country', query.country),
+      );
+    }
+
+    const search = query.q?.trim();
     if (search) {
-      const searchFilter =
-        query.q != null
-          ? this.buildItemSearchFilter(search)
-          : { 'location.city': new RegExp(this.escapeRegex(search), 'i') };
-      filter.$and!.push(searchFilter);
+      filter.$and!.push(this.buildItemSearchFilter(search));
     }
 
     const items = await this.itemModel
@@ -181,6 +186,46 @@ export class ItemsService implements OnModuleInit {
 
   private escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private buildLocationFieldFilter(
+    field: string,
+    value: string,
+  ): Record<string, unknown> {
+    const pattern = new RegExp(this.escapeRegex(value.trim()), 'i');
+    return { [field]: pattern };
+  }
+
+  async findVisitedPlaces(
+    userId: string,
+    filters: {
+      city?: string;
+      country?: string;
+      category?: ItemQueryDto['category'];
+      q?: string;
+    },
+  ) {
+    const items = await this.findAll(userId, {
+      category: filters.category,
+      q: filters.q?.trim() || undefined,
+    });
+
+    let visited = items.filter((item) => item.latestVisit);
+
+    if (filters.city?.trim()) {
+      const city = filters.city.trim();
+      visited = visited.filter((item) =>
+        locationMatchesQuery(item.location, city),
+      );
+    }
+    if (filters.country?.trim()) {
+      const country = filters.country.trim();
+      visited = visited.filter((item) =>
+        locationMatchesQuery(item.location, country),
+      );
+    }
+
+    return visited;
   }
 
   async findOne(userId: string, itemId: string) {

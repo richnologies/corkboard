@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { formatLocationSummary } from '@org/domain';
 import { Experience, ExperienceDocument } from './experience.schema.js';
 import { ItemsService } from '../items/items.service.js';
 import { PeopleService } from '../people/people.service.js';
@@ -77,6 +78,7 @@ export class ExperienceSearchIndexService implements OnModuleInit {
 
     const searchText = this.buildSearchText({
       itemName: item.name,
+      location: formatLocationSummary(item.location),
       visitedAt: experience.visitedAt,
       notes: experience.notes,
       wouldReturn: experience.wouldReturn,
@@ -105,6 +107,7 @@ export class ExperienceSearchIndexService implements OnModuleInit {
 
   private buildSearchText(input: {
     itemName: string;
+    location?: string;
     visitedAt: Date;
     notes?: string;
     wouldReturn?: boolean;
@@ -114,6 +117,7 @@ export class ExperienceSearchIndexService implements OnModuleInit {
   }): string {
     const lines = [
       `Place: ${input.itemName}`,
+      ...(input.location ? [`Location: ${input.location}`] : []),
       `Visited: ${input.visitedAt.toISOString().slice(0, 10)}`,
     ];
 
