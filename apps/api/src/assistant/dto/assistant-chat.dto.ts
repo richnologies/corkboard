@@ -59,9 +59,23 @@ export class PendingVisitDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsBoolean()
+  wouldReturn?: boolean;
+
   @IsArray()
   @IsString({ each: true })
   companions!: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photoKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photoThumbKeys?: string[];
 }
 
 export class AssistantChatMessageDto {
@@ -84,6 +98,11 @@ export class AssistantChatDto {
   photoKeys?: string[];
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  photoThumbKeys?: string[];
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => ConfirmedMapPlaceDto)
   confirmedMapPlace?: ConfirmedMapPlaceDto;
@@ -102,6 +121,10 @@ export class AssistantChatDto {
   @IsOptional()
   @IsIn(['en', 'es'])
   locale?: 'en' | 'es';
+
+  @IsOptional()
+  @IsString()
+  timeZone?: string;
 
   @IsOptional()
   @IsString()

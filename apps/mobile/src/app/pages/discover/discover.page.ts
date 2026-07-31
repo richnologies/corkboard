@@ -123,6 +123,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   private confirmedMapPlace: ConfirmedMapPlace | undefined;
   private companionResolutions: CompanionNameResolution[] = [];
   private pendingVisit: PendingVisitAction | undefined;
+  private sessionPhotos: { key: string; thumbKey: string }[] = [];
 
   readonly examplePrompts = [
     'chat.exampleLastVisit',
@@ -156,6 +157,12 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     this.draft.set(this.i18n.t(key));
   }
 
+  useSuggestedReply(reply: string) {
+    if (this.sending()) return;
+    this.draft.set(reply);
+    void this.send();
+  }
+
   async startNewChat() {
     await this.speech.stop();
     this.resetChatState();
@@ -171,6 +178,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
         this.companionResolutions = [];
         this.pendingVisit = undefined;
         this.confirmedMapPlace = undefined;
+        this.sessionPhotos = [];
         void this.menu.close('chat-history');
         this.scrollToBottom();
       },
@@ -313,14 +321,19 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     this.scrollToBottom();
 
     try {
-      const photoKeys: string[] = [];
       for (const photo of photos) {
         const uploaded = await this.media.uploadPhoto(photo.full, photo.thumb);
-        photoKeys.push(uploaded.key);
+        this.sessionPhotos.push({
+          key: uploaded.key,
+          thumbKey: uploaded.thumbKey,
+        });
       }
       if (photos.length) {
         this.clearPendingPhotos();
       }
+
+      const photoKeys = this.sessionPhotos.map((photo) => photo.key);
+      const photoThumbKeys = this.sessionPhotos.map((photo) => photo.thumbKey);
 
       const history = this.messages();
       const confirmedMapPlace = this.confirmedMapPlace;
@@ -341,6 +354,8 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
             confirmedMapPlace,
             confirmedCompanions,
             pendingVisit,
+            photoThumbKeys,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           },
           this.i18n.locale(),
         )
@@ -360,6 +375,10 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
               this.companionResolutions = [];
             }
 
+            if (response.loggedVisit) {
+              this.sessionPhotos = [];
+            }
+
             this.messages.update((current) => [
               ...current,
               {
@@ -370,6 +389,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
                 placeCandidates: response.placeCandidates,
                 companionAmbiguities: response.companionAmbiguities,
                 pendingVisit: response.pendingVisit,
+                suggestedReplies: response.suggestedReplies,
               },
             ]);
             this.sending.set(false);
@@ -418,6 +438,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
       placeCandidates: message.metadata?.placeCandidates,
       companionAmbiguities: message.metadata?.companionAmbiguities,
       pendingVisit: message.metadata?.pendingVisit,
+      suggestedReplies: message.metadata?.suggestedReplies,
       error: message.metadata?.error,
     };
   }
@@ -432,6 +453,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     this.companionResolutions = [];
     this.pendingVisit = undefined;
     this.confirmedMapPlace = undefined;
+    this.sessionPhotos = [];
     this.clearPendingPhotos();
   }
 

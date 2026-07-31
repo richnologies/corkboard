@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Item, ItemCategory, ItemStatus, CompanionAmbiguity, Person, formatLocationSummary, locationMatchesQuery, formatIsoDateUtc, resolveRelativeVisitDate, startOfUtcDay } from '@org/domain';
+import { Item, ItemCategory, ItemStatus, CompanionAmbiguity, Person, formatLocationSummary, locationMatchesQuery, resolveRelativeVisitDate, todayIsoInTimeZone } from '@org/domain';
 import { ItemsService } from '../items/items.service.js';
 import { ExperiencesService } from '../experiences/experiences.service.js';
 import { ExperienceSearchService } from '../experiences/experience-search.service.js';
@@ -30,6 +30,11 @@ interface OpenAiToolCall {
 
 type VisitLogMissingField = 'visitedAt' | 'overallRating' | 'companions';
 
+export interface VisitPhotoAttachment {
+  key: string;
+  thumbKey?: string;
+}
+
 export interface MapPlaceCandidate {
   index: number;
   googlePlaceId: string;
@@ -46,7 +51,10 @@ export interface PendingVisitAction {
   visitedAt?: string;
   overallRating?: number;
   notes?: string;
+  wouldReturn?: boolean;
   companions: string[];
+  photoKeys?: string[];
+  photoThumbKeys?: string[];
 }
 
 export interface AssistantChatResult {
@@ -55,6 +63,8 @@ export interface AssistantChatResult {
   placeCandidates?: MapPlaceCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
+  suggestedReplies?: string[];
+  loggedVisit?: boolean;
   conversationId?: string;
   title?: string;
 }
@@ -113,17 +123,19 @@ export class AssistantService {
     let placeCandidates: MapPlaceCandidate[] = [];
     let companionAmbiguities: CompanionAmbiguity[] = [];
     let pendingVisit: PendingVisitAction | undefined;
+    let loggedVisit = false;
     const locale = dto.locale ?? 'en';
-    const todayDate = startOfUtcDay(new Date());
-    const today = formatIsoDateUtc(todayDate);
-    const weekdayLabel = todayDate.toLocaleDateString(
+    const timeZone = dto.timeZone?.trim() || 'UTC';
+    const today = todayIsoInTimeZone(new Date(), timeZone);
+    const weekdayLabel = new Date(`${today}T12:00:00.000Z`).toLocaleDateString(
       locale === 'es' ? 'es-ES' : 'en-US',
       { weekday: 'long', timeZone: 'UTC' },
     );
+    const photos = await this.resolveVisitPhotos(userId, dto);
     const photoNote =
-      dto.photoKeys?.length ?
-        `The user attached ${dto.photoKeys.length} photo(s) with this message. If you log a visit, they should be saved with that visit.`
-      : 'The user did not attach photos with this message.';
+      photos.length > 0
+        ? `The user has ${photos.length} photo(s) ready to attach to a visit (including any shared earlier in this chat). Always save them with the visit when you log it.`
+        : 'The user has not attached photos for this visit yet.';
 
     const replyLanguage =
       locale === 'es' ? 'Spanish' : 'English';
@@ -134,7 +146,7 @@ export class AssistantService {
         content: [
           'You are Ambrosio, Malviviendo\'s friendly personal food & places assistant.',
           'The user tracks restaurants and places they visit, with ratings, companions, and photos.',
-          `Today is ${weekdayLabel}, ${today} (YYYY-MM-DD). Interpret relative dates like "yesterday" or "last Wednesday" accordingly.`,
+          `Today is ${weekdayLabel}, ${today} (YYYY-MM-DD) in the user's local timezone (${timeZone}). Interpret relative dates like "today", "yesterday", or "last Tuesday" accordingly. You may pass either an ISO date or the relative phrase as visitedAt — the server resolves phrases.`,
           'For questions about what/where the user ate on a specific day ("last Wednesday", "ayer", "el miércoles pasado"), use find_visits_by_date with relativeDate or an ISO fromDate. Never use get_last_visit unless asking about one named place.',
           'get_last_visit only answers when the user last went to a specific saved place by name — not for date-based recall.',
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
@@ -150,6 +162,7 @@ export class AssistantService {
           'Only call create_place_and_log_visit when the user is reporting a new visit they went on.',
           'Before calling log_visit or create_place_and_log_visit, you must have ALL of: when (visitedAt), overall rating (0-10), and companions (use an empty array if they went alone).',
           'If any of those are missing, ask the user in one friendly message — never guess a date, never default a rating, never log until they answer.',
+          'Also capture wouldReturn (whether they would come back). Infer it from their feedback when clear ("never again" → false, "can\'t wait to return" / "loved it" → true). If their feedback is ambiguous, ask briefly — yes/no is fine.',
           'Before logging companions by name, call search_people for each name. Use the exact saved name when there is a clear match.',
           'If a companion name is ambiguous (e.g. "Pi" vs "Pili"), the app will ask the user to pick — do not create a new person until they confirm.',
           'When several saved places match a name, list them and ask the user to clarify.',
@@ -190,13 +203,15 @@ export class AssistantService {
         let roundPlaceCandidates: MapPlaceCandidate[] = [];
         let roundCompanionAmbiguities: CompanionAmbiguity[] = [];
         let roundPendingVisit: PendingVisitAction | undefined;
+        let roundMissingFields: VisitLogMissingField[] | undefined;
         for (const toolCall of choice.tool_calls) {
           let result: unknown;
           try {
             result = await this.runTool(
               userId,
               toolCall,
-              dto.photoKeys ?? [],
+              photos,
+              timeZone,
               roundRelatedItems,
               (candidates) => {
                 roundPlaceCandidates = candidates;
@@ -210,6 +225,12 @@ export class AssistantService {
           if (this.isCompanionAmbiguityResult(result)) {
             roundCompanionAmbiguities = result.companionAmbiguities;
             roundPendingVisit = result.pendingVisit;
+          }
+          if (this.isVisitNeedsInputResult(result)) {
+            roundMissingFields = result.missingFields;
+          }
+          if (this.isSuccessfulVisitLogResult(result)) {
+            loggedVisit = true;
           }
           messages.push({
             role: 'tool',
@@ -232,6 +253,21 @@ export class AssistantService {
             locale,
           );
         }
+        if (roundMissingFields?.length) {
+          return {
+            message: this.formatMissingVisitPrompt(roundMissingFields, locale),
+            relatedItems: [...relatedItems.entries()].map(([id, name]) => ({
+              id,
+              name,
+            })),
+            suggestedReplies: this.suggestedRepliesForMissing(
+              roundMissingFields,
+              locale,
+            ),
+            placeCandidates:
+              placeCandidates.length > 1 ? placeCandidates : undefined,
+          };
+        }
         continue;
       }
 
@@ -248,6 +284,8 @@ export class AssistantService {
         })),
         placeCandidates:
           placeCandidates.length > 1 ? placeCandidates : undefined,
+        suggestedReplies: this.inferSuggestedReplies(text, locale),
+        loggedVisit: loggedVisit || undefined,
       };
     }
 
@@ -289,7 +327,8 @@ export class AssistantService {
   private async runTool(
     userId: string,
     toolCall: OpenAiToolCall,
-    photoKeys: string[],
+    photos: VisitPhotoAttachment[],
+    timeZone: string,
     relatedItems: Map<string, string>,
     onPlaceCandidates: (candidates: MapPlaceCandidate[]) => void,
   ): Promise<unknown> {
@@ -304,7 +343,7 @@ export class AssistantService {
       case 'search_places':
         return this.toolSearchPlaces(userId, args, relatedItems);
       case 'find_visits_by_date':
-        return this.toolFindVisitsByDate(userId, args, relatedItems);
+        return this.toolFindVisitsByDate(userId, args, relatedItems, timeZone);
       case 'get_last_visit':
         return this.toolGetLastVisit(
           userId,
@@ -321,15 +360,16 @@ export class AssistantService {
         return this.toolCreatePlaceAndLogVisit(
           userId,
           args,
-          photoKeys,
+          photos,
+          timeZone,
           relatedItems,
         );
       case 'ensure_place_from_google':
         return this.toolEnsurePlaceFromGoogle(userId, args, relatedItems);
       case 'log_visit':
-        return this.toolLogVisit(userId, args, photoKeys, relatedItems);
+        return this.toolLogVisit(userId, args, photos, timeZone, relatedItems);
       case 'update_visit':
-        return this.toolUpdateVisit(userId, args, relatedItems);
+        return this.toolUpdateVisit(userId, args, timeZone, relatedItems);
       case 'search_visits':
         return this.toolSearchVisits(userId, args, relatedItems);
       case 'search_people':
@@ -415,7 +455,8 @@ export class AssistantService {
   private async toolCreatePlaceAndLogVisit(
     userId: string,
     args: Record<string, unknown>,
-    photoKeys: string[],
+    photos: VisitPhotoAttachment[],
+    timeZone: string,
     relatedItems: Map<string, string>,
   ) {
     const googlePlaceId = String(args['googlePlaceId'] ?? '').trim();
@@ -423,7 +464,7 @@ export class AssistantService {
       return { error: 'googlePlaceId is required' };
     }
 
-    const validated = this.validateVisitLogArgs(args);
+    const validated = this.validateVisitLogArgs(args, timeZone);
     if (!validated.ok) {
       return this.visitLogNeedsInput(validated.missingFields);
     }
@@ -438,7 +479,8 @@ export class AssistantService {
       return place;
     }
 
-    const { visitedAt, overallRating, companions, notes } = validated;
+    const { visitedAt, overallRating, companions, notes, wouldReturn } =
+      validated;
 
     const companionResult = await this.peopleService.prepareCompanions(
       userId,
@@ -447,14 +489,18 @@ export class AssistantService {
     if (!companionResult.ok) {
       return this.companionAmbiguityToolResult(
         companionResult.ambiguities,
-        {
-          type: 'create_place_and_log_visit',
-          googlePlaceId,
-          visitedAt,
-          overallRating,
-          notes,
-          companions,
-        },
+        this.pendingVisitWithPhotos(
+          {
+            type: 'create_place_and_log_visit',
+            googlePlaceId,
+            visitedAt,
+            overallRating,
+            notes,
+            wouldReturn,
+            companions,
+          },
+          photos,
+        ),
       );
     }
 
@@ -465,6 +511,7 @@ export class AssistantService {
         visitedAt,
         companionPersonIds: companionResult.companionPersonIds,
         notes,
+        wouldReturn,
         rating: {
           food: overallRating,
           service: overallRating,
@@ -472,7 +519,10 @@ export class AssistantService {
           valueForMoney: overallRating,
           overall: overallRating,
         },
-        photos: photoKeys.map((key) => ({ key })),
+        photos: photos.map((photo) => ({
+          key: photo.key,
+          thumbKey: photo.thumbKey,
+        })),
       },
     );
 
@@ -484,6 +534,7 @@ export class AssistantService {
         id: experience.id,
         visitedAt: experience.visitedAt,
         companions: experience.companions ?? [],
+        wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
       },
     };
@@ -651,6 +702,7 @@ export class AssistantService {
     userId: string,
     args: Record<string, unknown>,
     relatedItems: Map<string, string>,
+    timeZone: string,
   ) {
     let fromDate = args['fromDate'] ? String(args['fromDate']).trim() : undefined;
     let toDate = args['toDate'] ? String(args['toDate']).trim() : undefined;
@@ -665,7 +717,11 @@ export class AssistantService {
       : undefined;
 
     if (relativeDate) {
-      const resolved = resolveRelativeVisitDate(relativeDate);
+      const resolved = resolveRelativeVisitDate(
+        relativeDate,
+        new Date(),
+        timeZone,
+      );
       if (!resolved) {
         return {
           error: `Could not parse date phrase "${relativeDate}". Use YYYY-MM-DD in fromDate instead.`,
@@ -774,6 +830,7 @@ export class AssistantService {
   private async toolUpdateVisit(
     userId: string,
     args: Record<string, unknown>,
+    timeZone: string,
     relatedItems: Map<string, string>,
   ) {
     const resolved = await this.resolveExperience(userId, args);
@@ -785,10 +842,17 @@ export class AssistantService {
     const updates: Record<string, unknown> = {};
 
     if (args['newVisitedAt']) {
-      updates['visitedAt'] = new Date(String(args['newVisitedAt'])).toISOString();
+      const parsed = this.parseVisitedAt(String(args['newVisitedAt']), timeZone);
+      if (!parsed) {
+        return { error: 'Could not parse the new visit date.' };
+      }
+      updates['visitedAt'] = parsed;
     }
     if (args['notes'] !== undefined) {
       updates['notes'] = String(args['notes']);
+    }
+    if (typeof args['wouldReturn'] === 'boolean') {
+      updates['wouldReturn'] = args['wouldReturn'];
     }
     if (Array.isArray(args['companions'])) {
       const companionNames = args['companions'].map(String);
@@ -840,6 +904,7 @@ export class AssistantService {
         companions: experience.companions ?? [],
         notes: experience.notes,
         overallRating: experience.rating?.overall,
+        wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
       },
     };
@@ -954,10 +1019,11 @@ export class AssistantService {
   private async toolLogVisit(
     userId: string,
     args: Record<string, unknown>,
-    photoKeys: string[],
+    photos: VisitPhotoAttachment[],
+    timeZone: string,
     relatedItems: Map<string, string>,
   ) {
-    const validated = this.validateVisitLogArgs(args);
+    const validated = this.validateVisitLogArgs(args, timeZone);
     if (!validated.ok) {
       return this.visitLogNeedsInput(validated.missingFields);
     }
@@ -974,7 +1040,8 @@ export class AssistantService {
     const place = resolved;
     relatedItems.set(place.id, place.name);
 
-    const { visitedAt, overallRating, companions, notes } = validated;
+    const { visitedAt, overallRating, companions, notes, wouldReturn } =
+      validated;
 
     const companionResult = await this.peopleService.prepareCompanions(
       userId,
@@ -983,14 +1050,18 @@ export class AssistantService {
     if (!companionResult.ok) {
       return this.companionAmbiguityToolResult(
         companionResult.ambiguities,
-        {
-          type: 'log_visit',
-          placeId: place.id,
-          visitedAt,
-          overallRating,
-          notes,
-          companions,
-        },
+        this.pendingVisitWithPhotos(
+          {
+            type: 'log_visit',
+            placeId: place.id,
+            visitedAt,
+            overallRating,
+            notes,
+            wouldReturn,
+            companions,
+          },
+          photos,
+        ),
       );
     }
 
@@ -998,6 +1069,7 @@ export class AssistantService {
       visitedAt,
       companionPersonIds: companionResult.companionPersonIds,
       notes,
+      wouldReturn,
       rating: {
         food: overallRating,
         service: overallRating,
@@ -1005,7 +1077,10 @@ export class AssistantService {
         valueForMoney: overallRating,
         overall: overallRating,
       },
-      photos: photoKeys.map((key) => ({ key })),
+      photos: photos.map((photo) => ({
+        key: photo.key,
+        thumbKey: photo.thumbKey,
+      })),
     });
 
     return {
@@ -1015,6 +1090,7 @@ export class AssistantService {
         id: experience.id,
         visitedAt: experience.visitedAt,
         companions: experience.companions ?? [],
+        wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
       },
     };
@@ -1177,12 +1253,15 @@ export class AssistantService {
     const placeName = confirmed.name ?? place.item.name;
 
     if (intent === 'log_visit') {
+      const timeZone = dto.timeZone?.trim() || 'UTC';
+      const photos = await this.resolveVisitPhotos(userId, dto);
       const visitDetails = await this.extractVisitDetailsFromMessages(
         apiKey,
         model,
         dto.messages,
+        timeZone,
       );
-      const validated = this.validateVisitLogArgs(visitDetails);
+      const validated = this.validateVisitLogArgs(visitDetails, timeZone);
       if (!validated.ok) {
         return {
           message: this.formatMissingVisitPrompt(
@@ -1194,6 +1273,10 @@ export class AssistantService {
             id,
             name,
           })),
+          suggestedReplies: this.suggestedRepliesForMissing(
+            validated.missingFields,
+            locale,
+          ),
         };
       }
 
@@ -1205,8 +1288,10 @@ export class AssistantService {
           companions: validated.companions,
           notes: validated.notes,
           overallRating: validated.overallRating,
+          wouldReturn: validated.wouldReturn,
         },
-        dto.photoKeys ?? [],
+        photos,
+        timeZone,
         relatedItems,
       );
       if (this.isCompanionAmbiguityResult(result)) {
@@ -1238,6 +1323,7 @@ export class AssistantService {
           id,
           name,
         })),
+        loggedVisit: true,
       };
     }
 
@@ -1384,13 +1470,17 @@ export class AssistantService {
       : `I couldn't find any logged visits to ${placeName}.`;
   }
 
-  private validateVisitLogArgs(args: Record<string, unknown>):
+  private validateVisitLogArgs(
+    args: Record<string, unknown>,
+    timeZone = 'UTC',
+  ):
     | {
         ok: true;
         visitedAt: string;
         overallRating: number;
         companions: string[];
         notes?: string;
+        wouldReturn?: boolean;
       }
     | { ok: false; missingFields: VisitLogMissingField[] } {
     const missingFields: VisitLogMissingField[] = [];
@@ -1398,10 +1488,7 @@ export class AssistantService {
     const visitedAtRaw = args['visitedAt'];
     let visitedAt: string | undefined;
     if (typeof visitedAtRaw === 'string' && visitedAtRaw.trim()) {
-      const parsed = new Date(visitedAtRaw);
-      if (!Number.isNaN(parsed.getTime())) {
-        visitedAt = parsed.toISOString();
-      }
+      visitedAt = this.parseVisitedAt(visitedAtRaw, timeZone);
     }
     if (!visitedAt) {
       missingFields.push('visitedAt');
@@ -1424,16 +1511,46 @@ export class AssistantService {
       return { ok: false, missingFields };
     }
 
+    const ratingValue = overallRating as number;
+
     return {
       ok: true,
       visitedAt: visitedAt!,
-      overallRating,
+      overallRating: ratingValue,
       companions: (args['companions'] as unknown[]).map(String),
       notes:
         typeof args['notes'] === 'string'
           ? args['notes'].trim() || undefined
           : undefined,
+      wouldReturn:
+        typeof args['wouldReturn'] === 'boolean'
+          ? args['wouldReturn']
+          : undefined,
     };
+  }
+
+  private parseVisitedAt(raw: string, timeZone = 'UTC'): string | undefined {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString();
+      }
+    }
+
+    const resolved = resolveRelativeVisitDate(trimmed, new Date(), timeZone);
+    if (resolved) {
+      return `${resolved.fromDate}T12:00:00.000Z`;
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+
+    return undefined;
   }
 
   private visitLogNeedsInput(missingFields: VisitLogMissingField[]) {
@@ -1442,6 +1559,83 @@ export class AssistantService {
       missingFields,
       message: `Cannot log the visit yet. Ask the user for: ${missingFields.join(', ')}. Do not guess or use defaults.`,
     };
+  }
+
+  private isVisitNeedsInputResult(
+    result: unknown,
+  ): result is { needsInput: true; missingFields: VisitLogMissingField[] } {
+    return (
+      typeof result === 'object' &&
+      result !== null &&
+      'needsInput' in result &&
+      (result as { needsInput?: unknown }).needsInput === true &&
+      Array.isArray((result as { missingFields?: unknown }).missingFields)
+    );
+  }
+
+  private isSuccessfulVisitLogResult(result: unknown): boolean {
+    return (
+      typeof result === 'object' &&
+      result !== null &&
+      'success' in result &&
+      (result as { success?: unknown }).success === true &&
+      'visit' in result
+    );
+  }
+
+  private suggestedRepliesForMissing(
+    missingFields: VisitLogMissingField[],
+    locale: 'en' | 'es',
+  ): string[] | undefined {
+    if (missingFields.length === 1 && missingFields[0] === 'visitedAt') {
+      return locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday'];
+    }
+    if (missingFields.length === 1 && missingFields[0] === 'overallRating') {
+      return ['10', '8', '7', '5', '3'];
+    }
+    if (missingFields.length === 1 && missingFields[0] === 'companions') {
+      return locale === 'es' ? ['Solo/a'] : ['Alone'];
+    }
+    if (missingFields.includes('visitedAt') && missingFields.includes('overallRating')) {
+      return locale === 'es'
+        ? ['Hoy', 'Ayer', '8', 'Solo/a']
+        : ['Today', 'Yesterday', '8', 'Alone'];
+    }
+    return undefined;
+  }
+
+  private inferSuggestedReplies(
+    message: string,
+    locale: 'en' | 'es',
+  ): string[] | undefined {
+    const lower = message.toLowerCase();
+    if (
+      /would you (like to )?(come|go) back|go back again|come back|volver[ií]as|te gustar[ií]a volver|¿volver|volverias/.test(
+        lower,
+      )
+    ) {
+      return locale === 'es' ? ['Sí', 'No'] : ['Yes', 'No'];
+    }
+    if (
+      /(rating|score|out of 10|\/10|puntuaci[oó]n|del 0 al 10|de 0 a 10|0-10|0–10)/.test(
+        lower,
+      )
+    ) {
+      return ['10', '8', '7', '5', '3'];
+    }
+    if (
+      /(when did you|what day|which day|cu[aá]ndo|qu[eé] d[ií]a)/.test(lower)
+    ) {
+      return locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday'];
+    }
+    if (
+      /(who (did you|were you) with|went alone|con qui[eé]n|fuiste solo|fuiste sola)/.test(
+        lower,
+      )
+    ) {
+      return locale === 'es' ? ['Solo/a'] : ['Alone'];
+    }
+    return undefined;
   }
 
   private formatMissingVisitPrompt(
@@ -1477,8 +1671,9 @@ export class AssistantService {
     apiKey: string,
     model: string,
     messages: AssistantChatDto['messages'],
+    timeZone = 'UTC',
   ): Promise<Record<string, unknown>> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIsoInTimeZone(new Date(), timeZone);
     const conversation = messages
       .filter((message) => message.role === 'user')
       .map((message) => message.content)
@@ -1498,12 +1693,14 @@ export class AssistantService {
           {
             role: 'system',
             content: [
-              `Today is ${today}.`,
+              `Today is ${today} in timezone ${timeZone}.`,
               'Extract visit details ONLY when the user is logging a new visit.',
-              'Return JSON: { "visitedAt": "ISO 8601 date or null", "companions": ["name"] or null, "notes": "optional", "overallRating": number or null, "wentAlone": boolean or null }.',
+              'Return JSON: { "visitedAt": "ISO date, relative phrase like today/yesterday/last Tuesday, or null", "companions": ["name"] or null, "notes": "optional", "overallRating": number or null, "wentAlone": boolean or null, "wouldReturn": boolean or null }.',
               'Use null for any field the user did not clearly state. Do not guess dates or ratings.',
+              'Prefer keeping relative phrases (today, yesterday, last Tuesday) when the user used them.',
               'If the user said they went alone/solo, set wentAlone: true and companions: [].',
               'If they named companions, set companions to those names.',
+              'Set wouldReturn from clear feedback ("never again" → false, "would go back" / "loved it" → true). Leave null if unsure.',
             ].join(' '),
           },
           { role: 'user', content: conversation || today },
@@ -1530,14 +1727,17 @@ export class AssistantService {
         notes?: string;
         overallRating?: number | null;
         wentAlone?: boolean | null;
+        wouldReturn?: boolean | null;
       };
 
       const result: Record<string, unknown> = {};
 
       if (parsed.visitedAt) {
-        const date = new Date(parsed.visitedAt);
-        if (!Number.isNaN(date.getTime())) {
-          result['visitedAt'] = date.toISOString();
+        const resolved = this.parseVisitedAt(parsed.visitedAt, timeZone);
+        if (resolved) {
+          result['visitedAt'] = resolved;
+        } else {
+          result['visitedAt'] = parsed.visitedAt;
         }
       }
 
@@ -1553,6 +1753,10 @@ export class AssistantService {
 
       if (parsed.notes?.trim()) {
         result['notes'] = parsed.notes.trim();
+      }
+
+      if (typeof parsed.wouldReturn === 'boolean') {
+        result['wouldReturn'] = parsed.wouldReturn;
       }
 
       return result;
@@ -1640,7 +1844,7 @@ export class AssistantService {
     const pending = dto.pendingVisit!;
     const resolutions = dto.confirmedCompanions ?? [];
     const relatedItems = new Map<string, string>();
-    const photoKeys = dto.photoKeys ?? [];
+    const photos = await this.resolveVisitPhotos(userId, dto);
 
     const companionResult = await this.peopleService.prepareCompanions(
       userId,
@@ -1658,7 +1862,7 @@ export class AssistantService {
             type: person.type,
           })),
         })),
-        pending,
+        this.pendingVisitWithPhotos(pending, photos),
         relatedItems,
         locale,
       );
@@ -1733,12 +1937,16 @@ export class AssistantService {
       throw new BadRequestException('Incomplete visit details');
     }
 
-    const experience = await this.experiencesService.create(userId, placeId, {
+    await this.experiencesService.create(userId, placeId, {
       visitedAt: pending.visitedAt,
       companionPersonIds: companionResult.companionPersonIds,
       notes: pending.notes,
+      wouldReturn: pending.wouldReturn,
       rating: rating!,
-      photos: photoKeys.map((key) => ({ key })),
+      photos: photos.map((photo) => ({
+        key: photo.key,
+        thumbKey: photo.thumbKey,
+      })),
     });
 
     const companionText =
@@ -1757,7 +1965,48 @@ export class AssistantService {
         id,
         name,
       })),
+      loggedVisit: true,
     };
+  }
+
+  private pendingVisitWithPhotos(
+    pending: PendingVisitAction,
+    photos: VisitPhotoAttachment[],
+  ): PendingVisitAction {
+    if (!photos.length) return pending;
+    return {
+      ...pending,
+      photoKeys: photos.map((photo) => photo.key),
+      photoThumbKeys: photos.map((photo) => photo.thumbKey ?? ''),
+    };
+  }
+
+  private async resolveVisitPhotos(
+    _userId: string,
+    dto: AssistantChatDto,
+  ): Promise<VisitPhotoAttachment[]> {
+    const photos: VisitPhotoAttachment[] = [];
+    const seen = new Set<string>();
+
+    const add = (key?: string, thumbKey?: string) => {
+      const trimmed = key?.trim();
+      if (!trimmed || seen.has(trimmed)) return;
+      seen.add(trimmed);
+      photos.push({
+        key: trimmed,
+        thumbKey: thumbKey?.trim() || undefined,
+      });
+    };
+
+    const currentKeys = dto.photoKeys ?? [];
+    const currentThumbs = dto.photoThumbKeys ?? [];
+    currentKeys.forEach((key, index) => add(key, currentThumbs[index]));
+
+    const pendingKeys = dto.pendingVisit?.photoKeys ?? [];
+    const pendingThumbs = dto.pendingVisit?.photoThumbKeys ?? [];
+    pendingKeys.forEach((key, index) => add(key, pendingThumbs[index]));
+
+    return photos;
   }
 
   private async persistAndReturn(
@@ -1781,6 +2030,7 @@ export class AssistantService {
           placeCandidates: result.placeCandidates,
           companionAmbiguities: result.companionAmbiguities,
           pendingVisit: result.pendingVisit,
+          suggestedReplies: result.suggestedReplies,
         },
       },
       userMessage?.content,

@@ -21,7 +21,10 @@ export interface PendingVisitAction {
   visitedAt?: string;
   overallRating?: number;
   notes?: string;
+  wouldReturn?: boolean;
   companions: string[];
+  photoKeys?: string[];
+  photoThumbKeys?: string[];
 }
 
 export interface ChatMessage {
@@ -34,6 +37,7 @@ export interface ChatMessage {
   placeCandidates?: MapPlaceCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
+  suggestedReplies?: string[];
   error?: boolean;
 }
 
@@ -43,6 +47,8 @@ export interface AssistantChatResponse {
   placeCandidates?: MapPlaceCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
+  suggestedReplies?: string[];
+  loggedVisit?: boolean;
   conversationId?: string;
   title?: string;
 }
@@ -57,6 +63,8 @@ export interface AssistantChatOptions {
   confirmedMapPlace?: ConfirmedMapPlace;
   confirmedCompanions?: CompanionNameResolution[];
   pendingVisit?: PendingVisitAction;
+  photoThumbKeys?: string[];
+  timeZone?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -75,11 +83,15 @@ export class AssistantService {
         content: message.content,
       })),
       photoKeys: photoKeys.length ? photoKeys : undefined,
+      photoThumbKeys: options.photoThumbKeys?.length
+        ? options.photoThumbKeys
+        : undefined,
       conversationId: options.conversationId ?? undefined,
       confirmedMapPlace: options.confirmedMapPlace,
       confirmedCompanions: options.confirmedCompanions,
       pendingVisit: options.pendingVisit,
       locale,
+      timeZone: options.timeZone,
     });
   }
 }

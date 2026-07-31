@@ -152,6 +152,19 @@
                 }
               </div>
             }
+
+            @if (message.suggestedReplies?.length && !message.companionAmbiguities?.length && !message.placeCandidates?.length) {
+              <div class="chat-suggested-replies">
+                @for (reply of message.suggestedReplies!; track reply) {
+                  <ion-chip
+                    (click)="useSuggestedReply(reply)"
+                    [disabled]="sending()"
+                  >
+                    {{ reply }}
+                  </ion-chip>
+                }
+              </div>
+            }
           </div>
         </div>
       }

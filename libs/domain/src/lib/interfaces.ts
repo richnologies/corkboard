@@ -96,8 +96,12 @@ export interface ConversationMessageMetadata {
     visitedAt?: string;
     overallRating?: number;
     notes?: string;
+    wouldReturn?: boolean;
     companions: string[];
+    photoKeys?: string[];
+    photoThumbKeys?: string[];
   };
+  suggestedReplies?: string[];
   error?: boolean;
 }
 

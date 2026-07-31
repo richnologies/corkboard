@@ -79,6 +79,10 @@ export class SpeechInputService implements OnDestroy {
   async stop(): Promise<void> {
     if (!this.listening()) return;
 
+    // Drop the handler first so late final/partial results cannot rewrite the draft
+    // after the caller has already sent and cleared it.
+    this.transcriptHandler = undefined;
+
     if (Capacitor.isNativePlatform()) {
       await this.stopNative();
       return;
@@ -149,6 +153,7 @@ export class SpeechInputService implements OnDestroy {
       await SpeechRecognition.stop();
     } finally {
       await SpeechRecognition.removeAllListeners();
+      this.transcriptHandler = undefined;
       this.listening.set(false);
     }
   }
@@ -201,8 +206,18 @@ export class SpeechInputService implements OnDestroy {
   }
 
   private stopWeb(): void {
-    this.webRecognition?.stop();
+    const recognition = this.webRecognition;
+    if (recognition) {
+      // Detach handlers before stop(); Web Speech API often delivers a final
+      // onresult asynchronously after stop(), which would otherwise refill draft.
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognition.stop();
+    }
     this.webRecognition = undefined;
+    this.transcriptHandler = undefined;
+    this.webTranscriptBase = '';
     this.listening.set(false);
   }
 

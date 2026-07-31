@@ -245,6 +245,18 @@
   margin-top: 12px;
 }
 
+.chat-suggested-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+
+  ion-chip {
+    margin: 0;
+    cursor: pointer;
+  }
+}
+
 .companion-ambiguity-label {
   margin: 0 0 8px;
   font-size: 13px;

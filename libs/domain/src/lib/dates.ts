@@ -34,6 +34,30 @@ export function addUtcDays(date: Date, days: number): Date {
   return next;
 }
 
+/** Calendar YYYY-MM-DD for `now` in the given IANA time zone (defaults to UTC). */
+export function todayIsoInTimeZone(
+  now: Date = new Date(),
+  timeZone = 'UTC',
+): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(now);
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  } catch {
+    // Invalid time zone — fall through to UTC.
+  }
+  return formatIsoDateUtc(startOfUtcDay(now));
+}
+
 function foldDatePhrase(value: string): string {
   return value
     .trim()
@@ -51,20 +75,33 @@ export interface ResolvedDateRange {
 export function resolveRelativeVisitDate(
   phrase: string,
   today: Date = new Date(),
+  timeZone = 'UTC',
 ): ResolvedDateRange | null {
   const normalized = foldDatePhrase(phrase);
   if (!normalized) return null;
 
-  const todayUtc = startOfUtcDay(today);
+  const todayIso = todayIsoInTimeZone(today, timeZone);
+  const todayUtc = new Date(`${todayIso}T00:00:00.000Z`);
 
-  if (/^(yesterday|ayer)$/.test(normalized)) {
+  if (/^(yesterday|ayer)\b/.test(normalized)) {
     const date = addUtcDays(todayUtc, -1);
     const iso = formatIsoDateUtc(date);
     return { fromDate: iso, toDate: iso };
   }
 
-  if (/^(today|hoy)$/.test(normalized)) {
-    const iso = formatIsoDateUtc(todayUtc);
+  if (
+    /^(today|hoy|this morning|esta manana|tonight|esta noche|this afternoon|esta tarde)\b/.test(
+      normalized,
+    )
+  ) {
+    return { fromDate: todayIso, toDate: todayIso };
+  }
+
+  if (
+    /^(a week ago|hace una semana|last week|la semana pasada)$/.test(normalized)
+  ) {
+    const date = addUtcDays(todayUtc, -7);
+    const iso = formatIsoDateUtc(date);
     return { fromDate: iso, toDate: iso };
   }
 

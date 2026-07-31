@@ -150,7 +150,8 @@ export const ASSISTANT_TOOLS = [
           },
           visitedAt: {
             type: 'string',
-            description: 'ISO 8601 date — only if the user stated when they went',
+            description:
+              'When they went — ISO 8601 (YYYY-MM-DD) or a relative phrase like "today", "yesterday", "last Tuesday"',
           },
           companions: {
             type: 'array',
@@ -162,6 +163,11 @@ export const ASSISTANT_TOOLS = [
           overallRating: {
             type: 'number',
             description: 'Overall score 0-10 — only if the user gave a rating',
+          },
+          wouldReturn: {
+            type: 'boolean',
+            description:
+              'Whether they would come back. Infer from feedback when clear (e.g. "never again" → false, "loved it" → true). Ask if unsure.',
           },
         },
         required: ['googlePlaceId', 'visitedAt', 'overallRating', 'companions'],
@@ -181,7 +187,8 @@ export const ASSISTANT_TOOLS = [
           placeId: { type: 'string' },
           visitedAt: {
             type: 'string',
-            description: 'ISO 8601 date — only if the user stated when they went',
+            description:
+              'When they went — ISO 8601 (YYYY-MM-DD) or a relative phrase like "today", "yesterday", "last Tuesday"',
           },
           companions: {
             type: 'array',
@@ -194,6 +201,11 @@ export const ASSISTANT_TOOLS = [
             type: 'number',
             description: 'Overall score 0-10 — only if the user gave a rating',
           },
+          wouldReturn: {
+            type: 'boolean',
+            description:
+              'Whether they would come back. Infer from feedback when clear (e.g. "never again" → false, "loved it" → true). Ask if unsure.',
+          },
         },
         required: ['visitedAt', 'overallRating', 'companions'],
       },
@@ -204,7 +216,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'update_visit',
       description:
-        'Update an existing logged visit. Use when the user wants to change, fix, or correct a past visit (date, companions, notes, rating). Do NOT use for logging a new visit.',
+        'Update an existing logged visit. Use when the user wants to change, fix, or correct a past visit (date, companions, notes, rating, wouldReturn). Do NOT use for logging a new visit.',
       parameters: {
         type: 'object',
         properties: {
@@ -221,7 +233,8 @@ export const ASSISTANT_TOOLS = [
           },
           newVisitedAt: {
             type: 'string',
-            description: 'New ISO 8601 date if the user wants to change the visit date',
+            description:
+              'New visit date — ISO 8601 or relative phrase like "yesterday"',
           },
           companions: {
             type: 'array',
@@ -232,6 +245,10 @@ export const ASSISTANT_TOOLS = [
           overallRating: {
             type: 'number',
             description: 'Overall score 0-10',
+          },
+          wouldReturn: {
+            type: 'boolean',
+            description: 'Whether they would come back',
           },
         },
       },
