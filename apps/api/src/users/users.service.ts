@@ -26,4 +26,13 @@ export class UsersService {
   findByIds(ids: string[]): Promise<UserDocument[]> {
     return this.userModel.find({ _id: { $in: ids } }).exec();
   }
+
+  async updatePasswordHash(
+    id: string,
+    passwordHash: string,
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findByIdAndUpdate(id, { passwordHash }, { new: true })
+      .exec();
+  }
 }

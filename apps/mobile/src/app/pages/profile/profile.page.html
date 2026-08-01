@@ -40,7 +40,69 @@
     </ion-item>
   </ion-list>
 
-  <ion-button expand="block" fill="outline" color="medium" (click)="logout()">
+  <section class="password-section">
+    <h3>
+      <ion-icon name="key-outline" />
+      {{ 'profile.changePassword' | translate }}
+    </h3>
+
+    <form [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+      <ion-list lines="none">
+        <ion-item>
+          <ion-input
+            [label]="'profile.currentPassword' | translate"
+            labelPlacement="stacked"
+            type="password"
+            formControlName="currentPassword"
+            autocomplete="current-password"
+          />
+        </ion-item>
+        <ion-item>
+          <ion-input
+            [label]="'profile.newPassword' | translate"
+            labelPlacement="stacked"
+            type="password"
+            formControlName="newPassword"
+            autocomplete="new-password"
+          />
+        </ion-item>
+        <ion-item>
+          <ion-input
+            [label]="'profile.confirmPassword' | translate"
+            labelPlacement="stacked"
+            type="password"
+            formControlName="confirmPassword"
+            autocomplete="new-password"
+          />
+        </ion-item>
+      </ion-list>
+
+      @if (passwordError()) {
+        <ion-text color="danger">
+          <p class="password-message">{{ passwordError() }}</p>
+        </ion-text>
+      }
+      @if (passwordSuccess()) {
+        <ion-text color="success">
+          <p class="password-message">{{ 'profile.passwordChanged' | translate }}</p>
+        </ion-text>
+      }
+
+      <ion-button
+        expand="block"
+        type="submit"
+        [disabled]="passwordLoading() || passwordForm.invalid"
+      >
+        @if (passwordLoading()) {
+          <ion-spinner name="crescent" />
+        } @else {
+          {{ 'profile.savePassword' | translate }}
+        }
+      </ion-button>
+    </form>
+  </section>
+
+  <ion-button expand="block" fill="outline" color="medium" class="sign-out" (click)="logout()">
     <ion-icon slot="start" name="log-out-outline" />
     {{ 'auth.signOut' | translate }}
   </ion-button>

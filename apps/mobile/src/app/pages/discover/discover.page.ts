@@ -163,6 +163,18 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     void this.send();
   }
 
+  isLatestAnswerableMessage(message: ChatMessage): boolean {
+    if (message.role !== 'assistant' || this.sending()) return false;
+    const messages = this.messages();
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const entry = messages[index];
+      if (entry.role === 'assistant') {
+        return entry.id === message.id;
+      }
+    }
+    return false;
+  }
+
   async startNewChat() {
     await this.speech.stop();
     this.resetChatState();

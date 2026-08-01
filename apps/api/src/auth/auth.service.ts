@@ -2,11 +2,13 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { UsersService } from '../users/users.service.js';
-import { LoginDto, RegisterDto } from './dto/auth.dto.js';
+import { ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto.js';
 import { UserProfile } from '@org/domain';
 import { EmailService } from '../email/email.service.js';
 
@@ -58,6 +60,31 @@ export class AuthService {
       user: this.toProfile(user),
       accessToken: this.signToken(user.id, user.email),
     };
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ success: true }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.usersService.updatePasswordHash(userId, passwordHash);
+    return { success: true };
   }
 
   private signToken(userId: string, email: string): string {

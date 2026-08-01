@@ -34,6 +34,18 @@ export const es = {
       en: 'English',
       es: 'Español',
     },
+    changePassword: 'Cambiar contraseña',
+    currentPassword: 'Contraseña actual',
+    newPassword: 'Nueva contraseña',
+    confirmPassword: 'Confirmar nueva contraseña',
+    savePassword: 'Actualizar contraseña',
+    passwordChanged: 'Contraseña actualizada.',
+    errors: {
+      wrongPassword: 'La contraseña actual no es correcta',
+      mismatch: 'Las contraseñas nuevas no coinciden',
+      samePassword: 'La nueva contraseña debe ser distinta',
+      changeFailed: 'No se pudo actualizar la contraseña',
+    },
   },
   places: {
     title: 'Lugares',

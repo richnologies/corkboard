@@ -34,6 +34,18 @@ export const en = {
       en: 'English',
       es: 'Spanish',
     },
+    changePassword: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    savePassword: 'Update password',
+    passwordChanged: 'Password updated.',
+    errors: {
+      wrongPassword: 'Current password is incorrect',
+      mismatch: 'New passwords do not match',
+      samePassword: 'New password must be different',
+      changeFailed: 'Could not update password',
+    },
   },
   places: {
     title: 'Places',

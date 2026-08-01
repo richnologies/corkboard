@@ -153,7 +153,12 @@
               </div>
             }
 
-            @if (message.suggestedReplies?.length && !message.companionAmbiguities?.length && !message.placeCandidates?.length) {
+            @if (
+              message.suggestedReplies?.length &&
+              isLatestAnswerableMessage(message) &&
+              !message.companionAmbiguities?.length &&
+              !message.placeCandidates?.length
+            ) {
               <div class="chat-suggested-replies">
                 @for (reply of message.suggestedReplies!; track reply) {
                   <ion-chip

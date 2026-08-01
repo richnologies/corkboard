@@ -174,6 +174,7 @@ export class AssistantService {
             ? `The user already confirmed "${resolvedPlace.name}" (placeId: ${resolvedPlace.id}). Answer their original question using get_last_visit or search_visits. Do NOT log a new visit.`
             : null,
           'Keep replies short and conversational (2-4 sentences unless listing matches).',
+          'When you ask a clarifying question with short, tap-friendly answers (dates like today/yesterday, ratings 0–10, alone vs with someone, yes/no for coming back, etc.), end your message with exactly one machine line: <<<replies: Option1 | Option2 | Option3>>> in the user\'s language. Include 2–5 options. Only add that line when you are waiting for the user to answer — never on confirmations, finished logs, or lookup answers.',
           photoNote,
         ]
           .filter((line): line is string => !!line)
@@ -276,15 +277,16 @@ export class AssistantService {
         throw new BadRequestException('Assistant returned an empty response');
       }
 
+      const parsed = this.parseAssistantReply(text, locale);
       return {
-        message: text,
+        message: parsed.message,
         relatedItems: [...relatedItems.entries()].map(([id, name]) => ({
           id,
           name,
         })),
         placeCandidates:
           placeCandidates.length > 1 ? placeCandidates : undefined,
-        suggestedReplies: this.inferSuggestedReplies(text, locale),
+        suggestedReplies: parsed.suggestedReplies,
         loggedVisit: loggedVisit || undefined,
       };
     }
@@ -1587,55 +1589,103 @@ export class AssistantService {
     missingFields: VisitLogMissingField[],
     locale: 'en' | 'es',
   ): string[] | undefined {
-    if (missingFields.length === 1 && missingFields[0] === 'visitedAt') {
-      return locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday'];
+    const replies: string[] = [];
+    if (missingFields.includes('visitedAt')) {
+      replies.push(...(locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday']));
     }
-    if (missingFields.length === 1 && missingFields[0] === 'overallRating') {
-      return ['10', '8', '7', '5', '3'];
+    if (missingFields.includes('overallRating')) {
+      replies.push('10', '8', '7', '5', '3');
     }
-    if (missingFields.length === 1 && missingFields[0] === 'companions') {
-      return locale === 'es' ? ['Solo/a'] : ['Alone'];
+    if (missingFields.includes('companions')) {
+      replies.push(locale === 'es' ? 'Solo/a' : 'Alone');
     }
-    if (missingFields.includes('visitedAt') && missingFields.includes('overallRating')) {
-      return locale === 'es'
-        ? ['Hoy', 'Ayer', '8', 'Solo/a']
-        : ['Today', 'Yesterday', '8', 'Alone'];
+    return replies.length ? replies : undefined;
+  }
+
+  /** Pull <<<replies: A | B>>> from Ambrosio's text; fall back to heuristics for questions. */
+  private parseAssistantReply(
+    text: string,
+    locale: 'en' | 'es',
+  ): { message: string; suggestedReplies?: string[] } {
+    const marker =
+      /(?:\r?\n)?<<<\s*replies\s*:\s*([^>]+?)\s*>>>/i;
+    const match = text.match(marker);
+    if (match) {
+      const suggestedReplies = match[1]
+        .split('|')
+        .map((option) => option.trim())
+        .filter(Boolean)
+        .slice(0, 6);
+      const message = text.replace(marker, '').trim();
+      return {
+        message,
+        suggestedReplies: suggestedReplies.length ? suggestedReplies : undefined,
+      };
     }
-    return undefined;
+
+    return {
+      message: text,
+      suggestedReplies: this.inferSuggestedReplies(text, locale),
+    };
   }
 
   private inferSuggestedReplies(
     message: string,
     locale: 'en' | 'es',
   ): string[] | undefined {
+    // Only attach chips when Ambrosio is clearly waiting for an answer.
+    if (!/[?？]|¿/.test(message) && !/\b(please|por favor|dime|tell me|could you|me dices)\b/i.test(message)) {
+      return undefined;
+    }
+
     const lower = message.toLowerCase();
+    const replies: string[] = [];
+
+    const asksReturn =
+      /would you|come back|go back|return|volver|volver[ií]as|regresar|otra vez/.test(
+        lower,
+      ) &&
+      /(back|return|volver|regres|again|otra)/.test(lower);
+    if (asksReturn) {
+      replies.push(...(locale === 'es' ? ['Sí', 'No'] : ['Yes', 'No']));
+    }
+
+    const asksRating =
+      /(rating|score|out of|\/\s*10|puntuaci|nota|del 0|de 0 a|0\s*[-–]\s*10|overall)/.test(
+        lower,
+      );
+    if (asksRating) {
+      replies.push('10', '8', '7', '5', '3');
+    }
+
+    const asksDate =
+      /(when|what day|which day|cu[aá]ndo|qu[eé] d[ií]a|fecha|visited|fuiste|fue)/.test(
+        lower,
+      ) &&
+      /(when|day|date|cu[aá]ndo|d[ií]a|fecha|went|fuiste)/.test(lower);
+    if (asksDate && !asksReturn) {
+      replies.push(
+        ...(locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday']),
+      );
+    }
+
+    const asksCompanions =
+      /(who|with|alone|solo|sola|acompa|compa[nñ]|con qui[eé]n)/.test(lower);
+    if (asksCompanions && !asksReturn) {
+      replies.push(locale === 'es' ? 'Solo/a' : 'Alone');
+    }
+
+    // Generic yes/no questions (confirmation) when nothing more specific matched.
     if (
-      /would you (like to )?(come|go) back|go back again|come back|volver[ií]as|te gustar[ií]a volver|¿volver|volverias/.test(
+      !replies.length &&
+      /\b(yes or no|s[ií] o no|did you|do you|is that|was that|¿(es|fue|quieres|vas|te))\b/i.test(
         lower,
       )
     ) {
-      return locale === 'es' ? ['Sí', 'No'] : ['Yes', 'No'];
+      replies.push(...(locale === 'es' ? ['Sí', 'No'] : ['Yes', 'No']));
     }
-    if (
-      /(rating|score|out of 10|\/10|puntuaci[oó]n|del 0 al 10|de 0 a 10|0-10|0–10)/.test(
-        lower,
-      )
-    ) {
-      return ['10', '8', '7', '5', '3'];
-    }
-    if (
-      /(when did you|what day|which day|cu[aá]ndo|qu[eé] d[ií]a)/.test(lower)
-    ) {
-      return locale === 'es' ? ['Hoy', 'Ayer'] : ['Today', 'Yesterday'];
-    }
-    if (
-      /(who (did you|were you) with|went alone|con qui[eé]n|fuiste solo|fuiste sola)/.test(
-        lower,
-      )
-    ) {
-      return locale === 'es' ? ['Solo/a'] : ['Alone'];
-    }
-    return undefined;
+
+    return replies.length ? [...new Set(replies)].slice(0, 6) : undefined;
   }
 
   private formatMissingVisitPrompt(

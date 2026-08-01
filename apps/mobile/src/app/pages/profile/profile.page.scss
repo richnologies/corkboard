@@ -37,7 +37,35 @@
   }
 }
 
-ion-button {
+.password-section {
+  margin-top: 24px;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 4px 12px;
+    font-size: 16px;
+    font-weight: 700;
+
+    ion-icon {
+      color: var(--ion-color-primary);
+      font-size: 18px;
+    }
+  }
+
+  ion-button {
+    margin-top: 12px;
+    --border-radius: 14px;
+  }
+}
+
+.password-message {
+  margin: 8px 4px 0;
+  font-size: 14px;
+}
+
+.sign-out {
   margin-top: 32px;
   --border-radius: 14px;
 }

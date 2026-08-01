@@ -39,6 +39,13 @@ export class AuthService {
       .pipe(tap((res) => this.persist(res)));
   }
 
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.api.patch<{ success: true }>('/auth/password', {
+      currentPassword,
+      newPassword,
+    });
+  }
+
   logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

@@ -1,6 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Patch, Post, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service.js';
-import { LoginDto, RegisterDto } from './dto/auth.dto.js';
+import { ChangePasswordDto, LoginDto, RegisterDto } from './dto/auth.dto.js';
+import { AuthUser, CurrentUser } from './current-user.decorator.js';
 
 @Controller('auth')
 export class AuthController {
@@ -14,5 +16,14 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Patch('password')
+  @UseGuards(AuthGuard('jwt'))
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.userId, dto);
   }
 }
