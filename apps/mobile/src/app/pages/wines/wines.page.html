@@ -1,0 +1,119 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title class="brand-title">{{ 'wines.title' | translate }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar class="search-toolbar">
+    <ion-searchbar
+      class="search-input"
+      [placeholder]="'wines.searchPlaceholder' | translate"
+      debounce="400"
+      (ionInput)="onSearch($event)"
+    />
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="page-shell">
+  <ion-refresher slot="fixed" (ionRefresh)="load({ target: $event.target })">
+    <ion-refresher-content />
+  </ion-refresher>
+
+  <div class="filter-bar">
+    @for (status of statuses; track status) {
+      <ion-chip
+        [color]="activeStatus() === status ? 'primary' : undefined"
+        (click)="setStatus(status)"
+      >
+        {{ 'status.' + status | translate }}
+      </ion-chip>
+    }
+  </div>
+
+  @if (tags().length) {
+    <div class="filter-bar tags-row">
+      @for (t of tags(); track t.tag) {
+        <ion-chip
+          [outline]="activeTag() !== t.tag"
+          [color]="activeTag() === t.tag ? 'tertiary' : undefined"
+          (click)="setTag(t.tag)"
+        >
+          {{ t.tag }} ({{ t.count }})
+        </ion-chip>
+      }
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading-center"><ion-spinner /></div>
+  } @else if (!items().length) {
+    <div class="empty-state">
+      <ion-icon name="wine-outline" />
+      <h3>{{ 'wines.emptyTitle' | translate }}</h3>
+      <p>{{ 'wines.emptyBody' | translate }}</p>
+      <ion-button (click)="addItem()">{{ 'wines.addWine' | translate }}</ion-button>
+    </div>
+  } @else {
+    @for (item of items(); track item.id) {
+      <ion-card class="item-card" button (click)="openItem(item.id)">
+        <ion-card-content>
+          <div class="card-top">
+            <div class="icon-wrap">
+              @if (item.wine?.imageUrl; as imageUrl) {
+                <img class="wine-thumb" [src]="imageUrl" [alt]="displayName(item)" />
+              } @else {
+                <ion-icon [name]="categoryIcons[item.category]" />
+              }
+            </div>
+            <div class="card-meta">
+              <div class="name-row">
+                <h2>{{ displayName(item) }}</h2>
+                @if (isFavorite(item)) {
+                  <ion-icon name="heart" class="favorite-heart" [attr.aria-label]="'tag.favorite' | translate" />
+                }
+              </div>
+              <p class="category">{{ 'category.' + item.category | translate }}</p>
+            </div>
+            <span class="status-pill" [class]="item.status">{{ 'status.' + item.status | translate }}</span>
+          </div>
+          @if (hasLatestVisit(item)) {
+            <div class="last-visit">
+              <ion-icon name="calendar-outline" />
+              <span class="visit-date">
+                {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
+              </span>
+              @if (latestVisitScore(item); as score) {
+                <span class="visit-score">{{ score.toFixed(1) }}/10</span>
+              }
+              @if (latestVisitNotes(item); as notes) {
+                <span class="visit-notes">{{ notes }}</span>
+              }
+            </div>
+          }
+          @if (wineMetaLine(item); as meta) {
+            <p class="wine-meta">
+              {{ meta }}
+              @if (item.wine?.rating != null) {
+                · {{ item.wine!.rating | number: '1.1-1' }}/5
+              }
+            </p>
+          }
+          @if (item.source?.referrerName) {
+            <p class="source">{{ 'wines.via' | translate }} {{ item.source?.referrerName }}</p>
+          }
+          @if (displayTags(item).length) {
+            <div class="tags">
+              @for (tag of displayTags(item); track tag) {
+                <ion-chip class="tag-chip">{{ tag }}</ion-chip>
+              }
+            </div>
+          }
+        </ion-card-content>
+      </ion-card>
+    }
+  }
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="addItem()">
+      <ion-icon name="add" />
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>

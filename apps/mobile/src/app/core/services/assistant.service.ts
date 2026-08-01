@@ -13,6 +13,19 @@ export interface MapPlaceCandidate {
   category: string;
 }
 
+export interface WineCandidate {
+  index: number;
+  wineId: string;
+  vintageId?: string;
+  name: string;
+  displayName: string;
+  winery?: string;
+  region?: string;
+  year?: string;
+  rating?: number;
+  itemId?: string;
+}
+
 export interface PendingVisitAction {
   type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
   placeId?: string;
@@ -35,6 +48,7 @@ export interface ChatMessage {
   photoKeys?: string[];
   relatedItems?: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  wineCandidates?: WineCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
   suggestedReplies?: string[];
@@ -45,6 +59,7 @@ export interface AssistantChatResponse {
   message: string;
   relatedItems: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  wineCandidates?: WineCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
   suggestedReplies?: string[];
@@ -58,9 +73,17 @@ export interface ConfirmedMapPlace {
   name?: string;
 }
 
+export interface ConfirmedWine {
+  wineId: string;
+  vintageId?: string;
+  itemId?: string;
+  name?: string;
+}
+
 export interface AssistantChatOptions {
   conversationId?: string | null;
   confirmedMapPlace?: ConfirmedMapPlace;
+  confirmedWine?: ConfirmedWine;
   confirmedCompanions?: CompanionNameResolution[];
   pendingVisit?: PendingVisitAction;
   photoThumbKeys?: string[];
@@ -88,6 +111,7 @@ export class AssistantService {
         : undefined,
       conversationId: options.conversationId ?? undefined,
       confirmedMapPlace: options.confirmedMapPlace,
+      confirmedWine: options.confirmedWine,
       confirmedCompanions: options.confirmedCompanions,
       pendingVisit: options.pendingVisit,
       locale,

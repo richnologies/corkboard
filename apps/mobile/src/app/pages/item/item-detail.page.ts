@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -44,17 +44,30 @@ import {
   peopleOutline,
   pencilOutline,
   trashOutline,
+  wineOutline,
 } from 'ionicons/icons';
-import { Experience, ExperiencePhoto, ExperienceVisibility, ItemHistory, ItemStatus, categoryHasLocation } from '@org/domain';
+import { Experience, ExperiencePhoto, ExperienceVisibility, ItemHistory, ItemStatus, categoryHasLocation, isWineCategory } from '@org/domain';
 import { AuthService } from '../../core/services/auth.service';
 import { ExperiencePayload, ItemsService } from '../../core/services/items.service';
+import { WinesService } from '../../core/services/wines.service';
 import { MediaService } from '../../core/services/media.service';
 import { PhotoUrlService } from '../../core/services/photo-url.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { googleMapsUrl, openStreetMapUrl, streetViewUrl } from '../../shared/maps';
+import {
+  itemDisplayName,
+  locationLine,
+  wineAllergens,
+  wineDescription as localizedWineDescription,
+  wineGrapes,
+  wineRegion,
+  wineRegionCountry,
+  wineStyle,
+} from '../../shared/localized';
 import { OsmMapComponent } from '../../shared/components/osm-map.component';
 import { PersonPickerComponent } from '../../shared/components/person-picker.component';
+import { WinePickerComponent } from '../../shared/components/wine-picker.component';
 import {
   LightboxPhoto,
   PhotoLightboxComponent,
@@ -77,6 +90,7 @@ addIcons({
   peopleOutline,
   pencilOutline,
   trashOutline,
+  wineOutline,
 });
 
 interface VisitPhotoExisting {
@@ -104,6 +118,7 @@ type VisitPhotoEntry = VisitPhotoExisting | VisitPhotoNew;
   standalone: true,
   imports: [
     DatePipe,
+    DecimalPipe,
     ReactiveFormsModule,
     TranslatePipe,
     OsmMapComponent,
@@ -133,6 +148,7 @@ type VisitPhotoEntry = VisitPhotoExisting | VisitPhotoNew;
     IonReorder,
     IonReorderGroup,
     PersonPickerComponent,
+    WinePickerComponent,
     PhotoLightboxComponent,
   ],
   templateUrl: './item-detail.page.html',
@@ -142,6 +158,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly itemsService = inject(ItemsService);
+  private readonly winesService = inject(WinesService);
   private readonly mediaService = inject(MediaService);
   private readonly photoUrlService = inject(PhotoUrlService);
   private readonly auth = inject(AuthService);
@@ -165,7 +182,10 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
   readonly lightboxPhotos = signal<LightboxPhoto[]>([]);
   readonly lightboxIndex = signal(0);
   readonly companionPersonIds = signal<string[]>([]);
+  readonly wineItemIds = signal<string[]>([]);
   readonly visitVisibility = signal(ExperienceVisibility.Shared);
+  readonly defaultHref = signal('/tabs/places');
+  readonly deletingItem = signal(false);
 
   readonly visitVisibilities = Object.values(ExperienceVisibility);
 
@@ -198,16 +218,161 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     this.itemsService.history(id).subscribe({
       next: (h) => {
         this.history.set(h);
+        this.defaultHref.set(
+          isWineCategory(h.item.category) ? '/tabs/wines' : '/tabs/places',
+        );
         this.loadPhotoUrls(h.experiences);
         this.loading.set(false);
+        this.maybeEnrichWine(h.item.id, h.item.wine);
       },
       error: () => this.loading.set(false),
     });
   }
 
+  private maybeEnrichWine(
+    itemId: string,
+    wine?: {
+      description?: string;
+      descriptionEn?: string;
+      descriptionEs?: string;
+      region?: string;
+      regionEn?: string;
+      regionEs?: string;
+      country?: string;
+      countryEn?: string;
+      countryEs?: string;
+      style?: string;
+      styleEn?: string;
+      styleEs?: string;
+      grapes?: string[];
+      grapesEn?: string[];
+      grapesEs?: string[];
+      allergens?: string[];
+      allergensEn?: string[];
+      allergensEs?: string[];
+      imageKey?: string;
+      price?: number;
+      vivinoVintageId?: string;
+      vivinoWineId?: string;
+    },
+  ) {
+    if (!wine) return;
+    const needs =
+      !wine.descriptionEs?.trim() ||
+      !wine.descriptionEn?.trim() ||
+      ((wine.region || wine.regionEn || wine.regionEs) &&
+        (!wine.regionEn?.trim() || !wine.regionEs?.trim())) ||
+      ((wine.country || wine.countryEn || wine.countryEs) &&
+        (!wine.countryEn?.trim() || !wine.countryEs?.trim())) ||
+      ((wine.style || wine.styleEn || wine.styleEs) &&
+        (!wine.styleEn?.trim() || !wine.styleEs?.trim())) ||
+      ((wine.grapes?.length || wine.grapesEn?.length || wine.grapesEs?.length) &&
+        (!(wine.grapesEn?.length || wine.grapes?.length) ||
+          !wine.grapesEs?.length)) ||
+      ((wine.allergens?.length ||
+        wine.allergensEn?.length ||
+        wine.allergensEs?.length) &&
+        (!(wine.allergensEn?.length || wine.allergens?.length) ||
+          !wine.allergensEs?.length)) ||
+      !wine.imageKey ||
+      wine.price == null;
+    if (!needs) return;
+
+    this.winesService
+      .details({
+        itemId,
+        vintageId: wine.vivinoVintageId,
+        wineId: wine.vivinoWineId,
+      })
+      .subscribe({
+        next: (lookup) => {
+          const current = this.history();
+          if (!current || current.item.id !== itemId) return;
+          this.history.set({
+            ...current,
+            item: { ...current.item, wine: lookup.wine },
+          });
+        },
+      });
+  }
+
+  isWineItem(): boolean {
+    const category = this.history()?.item.category;
+    return category ? isWineCategory(category) : false;
+  }
+
+  canDeleteItem(): boolean {
+    const item = this.history()?.item;
+    const userId = this.auth.user()?.id;
+    return !!item && !!userId && item.ownerId === userId;
+  }
+
+  deleteItemLabelKey(): string {
+    return this.isWineItem() ? 'item.deleteWine' : 'item.deletePlace';
+  }
+
+  showsWinePicker(): boolean {
+    const editingId = this.editingExperienceId();
+    if (editingId) {
+      const exp = this.history()?.experiences.find((e) => e.id === editingId);
+      if (exp && exp.itemId !== this.itemId) return true;
+    }
+    return !this.isWineItem();
+  }
+
+  isLinkedVisit(exp: Experience): boolean {
+    return !!this.itemId && exp.itemId !== this.itemId;
+  }
+
+  openWine(wineId: string) {
+    this.router.navigate(['/item', wineId]);
+  }
+
+  openPlace(placeId: string) {
+    this.router.navigate(['/item', placeId]);
+  }
+
   edit() {
     const id = this.history()?.item.id;
     if (id) this.router.navigate(['/item', id, 'edit']);
+  }
+
+  async confirmDeleteItem() {
+    const item = this.history()?.item;
+    if (!item || !this.canDeleteItem() || this.deletingItem()) return;
+
+    const alert = await this.alertController.create({
+      header: this.i18n.t('item.deleteItemTitle', {
+        name: itemDisplayName(item, this.i18n.locale()),
+      }),
+      message: this.i18n.t('item.deleteItemConfirm'),
+      buttons: [
+        {
+          text: this.i18n.t('common.cancel'),
+          role: 'cancel',
+        },
+        {
+          text: this.i18n.t(this.deleteItemLabelKey()),
+          role: 'destructive',
+          handler: () => {
+            this.deleteItem(item.id);
+          },
+        },
+      ],
+    });
+
+    await alert.present();
+  }
+
+  private deleteItem(id: string) {
+    this.deletingItem.set(true);
+    this.itemsService.remove(id).subscribe({
+      next: () => {
+        this.deletingItem.set(false);
+        this.router.navigateByUrl(this.defaultHref());
+      },
+      error: () => this.deletingItem.set(false),
+    });
   }
 
   isEditingVisit(): boolean {
@@ -217,6 +382,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
   openVisitModal() {
     this.editingExperienceId.set(null);
     this.companionPersonIds.set([]);
+    this.wineItemIds.set([]);
     this.visitVisibility.set(ExperienceVisibility.Shared);
     this.resetVisitForm();
     this.visitModalOpen.set(true);
@@ -249,8 +415,8 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
       wouldReturn: exp.wouldReturn ?? true,
     });
     this.companionPersonIds.set(exp.companionPersonIds ?? []);
+    this.wineItemIds.set(exp.wineItemIds ?? []);
     this.visitVisibility.set(exp.visibility ?? ExperienceVisibility.Shared);
-
     this.visitModalOpen.set(true);
   }
 
@@ -258,6 +424,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     this.revokeNewPhotoPreviews();
     this.visitPhotoEntries.set([]);
     this.editingExperienceId.set(null);
+    this.wineItemIds.set([]);
     this.photoSelectionError.set(null);
     this.visitModalOpen.set(false);
   }
@@ -383,10 +550,21 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         photos,
       };
 
+      if (this.showsWinePicker()) {
+        payload.wineItemIds = this.wineItemIds();
+      }
+
       const editingId = this.editingExperienceId();
+      // Linked visits are stored on the place — always update/create against primary itemId.
+      const primaryItemId =
+        editingId != null
+          ? (this.history()?.experiences.find((e) => e.id === editingId)?.itemId ??
+            itemId)
+          : itemId;
+
       const req = editingId
         ? this.itemsService.updateExperience(editingId, payload)
-        : this.itemsService.addExperience(itemId, payload);
+        : this.itemsService.addExperience(primaryItemId, payload);
 
       req.subscribe({
         next: () => {
@@ -497,6 +675,65 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         this.history()?.item.name,
       );
     if (url) window.open(url, '_blank');
+  }
+
+  openVivino() {
+    const url = this.history()?.item.wine?.vivinoUrl;
+    if (url) window.open(url, '_blank');
+  }
+
+  displayName(): string {
+    const item = this.history()?.item;
+    if (!item) return '';
+    return itemDisplayName(item, this.i18n.locale());
+  }
+
+  placeLocationLine(): string | null {
+    return locationLine(this.history()?.item.location, this.i18n.locale()) ?? null;
+  }
+
+  wineRegionLine(): string | null {
+    const wine = this.history()?.item.wine;
+    if (!wine) return null;
+    const region = wineRegion(wine, this.i18n.locale());
+    const winery = wine.winery;
+    if (!winery && !region) return null;
+    if (winery && region) return `${winery} · ${region}`;
+    return winery || region || null;
+  }
+
+  wineGrapesLine(wine: NonNullable<import('@org/domain').Item['wine']>): string | null {
+    const grapes = wineGrapes(wine, this.i18n.locale());
+    return grapes?.length ? grapes.join(', ') : null;
+  }
+
+  wineRegionCountryLine(
+    wine: NonNullable<import('@org/domain').Item['wine']>,
+  ): string | null {
+    return wineRegionCountry(wine, this.i18n.locale()) ?? null;
+  }
+
+  wineStyleLine(
+    wine: NonNullable<import('@org/domain').Item['wine']>,
+  ): string | null {
+    return wineStyle(wine, this.i18n.locale()) ?? null;
+  }
+
+  wineAllergensLine(
+    wine: NonNullable<import('@org/domain').Item['wine']>,
+  ): string | null {
+    const allergens = wineAllergens(wine, this.i18n.locale());
+    return allergens?.length ? allergens.join(', ') : null;
+  }
+
+  wineDescription(wine: {
+    description?: string;
+    descriptionEn?: string;
+    descriptionEs?: string;
+  }): string | null {
+    return (
+      localizedWineDescription(wine, this.i18n.locale())?.trim() || null
+    );
   }
 
   hasGoogleMaps(): boolean {

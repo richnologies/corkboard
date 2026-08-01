@@ -33,6 +33,19 @@ export function itemIdQuery(itemId: string) {
   };
 }
 
+/** Experiences whose primary item is this id, or that link this wine. */
+export function experiencesForItemQuery(itemId: string) {
+  const oid = toObjectId(itemId);
+  return {
+    $or: [
+      { itemId: oid },
+      { itemId },
+      { wineItemIds: oid },
+      { wineItemIds: itemId },
+    ],
+  };
+}
+
 export function canViewExperience(
   experience: ExperienceDocument,
   userId: string,

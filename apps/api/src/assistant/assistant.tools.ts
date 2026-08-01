@@ -35,7 +35,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'search_places',
       description:
-        'Search saved places by name or keyword. Supports partial names (e.g. "dish" for "Dishoom") and ignores filler words like "restaurant".',
+        'Search saved places by name or keyword. Supports partial names (e.g. "dish" for "Dishoom") and ignores filler words like "restaurant". Does not return wines — use search_wines for bottles.',
       parameters: {
         type: 'object',
         properties: {
@@ -58,7 +58,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'find_visits_by_date',
       description:
-        'Find logged visits on a specific date or date range. Use for "what restaurant did I go to last Wednesday?", "where did I eat yesterday?", etc. Prefer this over get_last_visit for date-based recall.',
+        'Find logged visits on a specific date or date range. Use for "what restaurant did I go to last Wednesday?", "where did I eat yesterday?", "what wine did we have last Wednesday?", etc. Prefer this over get_last_visit for date-based recall. Results include linked wines when present.',
       parameters: {
         type: 'object',
         properties: {
@@ -89,7 +89,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'get_last_visit',
       description:
-        'Find when the user last visited a specific place, who they went with, and any notes.',
+        'Find when the user last visited a specific place, who they went with, notes, and any linked wines.',
       parameters: {
         type: 'object',
         properties: {
@@ -169,6 +169,17 @@ export const ASSISTANT_TOOLS = [
             description:
               'Whether they would come back. Infer from feedback when clear (e.g. "never again" → false, "loved it" → true). Ask if unsure.',
           },
+          wineItemIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional saved wine Item ids to link to this visit',
+          },
+          wineNames: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Optional wine names tasted on this visit — will be searched/ensured then linked',
+          },
         },
         required: ['googlePlaceId', 'visitedAt', 'overallRating', 'companions'],
       },
@@ -179,7 +190,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'log_visit',
       description:
-        'Log a visit to a saved place. Requires visitedAt, overallRating, and companions (use [] if alone). Ask the user for anything missing before calling.',
+        'Log a visit to a saved place. Requires visitedAt, overallRating, and companions (use [] if alone). Ask the user for anything missing before calling. Can optionally link wines tasted on the visit.',
       parameters: {
         type: 'object',
         properties: {
@@ -206,6 +217,17 @@ export const ASSISTANT_TOOLS = [
             description:
               'Whether they would come back. Infer from feedback when clear (e.g. "never again" → false, "loved it" → true). Ask if unsure.',
           },
+          wineItemIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional saved wine Item ids to link to this visit',
+          },
+          wineNames: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Optional wine names tasted on this visit — will be searched/ensured then linked',
+          },
         },
         required: ['visitedAt', 'overallRating', 'companions'],
       },
@@ -216,7 +238,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'update_visit',
       description:
-        'Update an existing logged visit. Use when the user wants to change, fix, or correct a past visit (date, companions, notes, rating, wouldReturn). Do NOT use for logging a new visit.',
+        'Update an existing logged visit. Use when the user wants to change, fix, or correct a past visit (date, companions, notes, rating, wouldReturn, wines). Do NOT use for logging a new visit.',
       parameters: {
         type: 'object',
         properties: {
@@ -250,6 +272,17 @@ export const ASSISTANT_TOOLS = [
             type: 'boolean',
             description: 'Whether they would come back',
           },
+          wineItemIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Replacement list of linked wine Item ids',
+          },
+          wineNames: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Wine names to resolve and set as the linked wines for this visit',
+          },
         },
       },
     },
@@ -259,7 +292,7 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'search_visits',
       description:
-        'Semantic and keyword search across logged visits. Finds matches in visit notes, companions, ratings, and AI-generated photo descriptions — even fuzzy or poorly worded queries. For city-based questions ("restaurants in Brussels"), prefer list_visited_places instead.',
+        'Semantic and keyword search across logged visits. Finds matches in visit notes, companions, ratings, linked wines, and AI-generated photo descriptions — even fuzzy or poorly worded queries. For city-based questions ("restaurants in Brussels"), prefer list_visited_places instead. For "what wine did I drink at X / on date Y", use this or find_visits_by_date and read the wines field.',
       parameters: {
         type: 'object',
         properties: {
@@ -292,6 +325,130 @@ export const ASSISTANT_TOOLS = [
           query: { type: 'string' },
         },
         required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'search_wines',
+      description:
+        'Search the user\'s wine library and Vivino catalog. Use for wine questions (origin, rating, style), finding a bottle by name, or before adding/linking a wine. Prefer local matches when present.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Wine name, winery, grape, or region, e.g. "Opus One 2018" or "Rioja"',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_wine_details',
+      description:
+        'Get detailed wine info (region, winery, grapes, Vivino rating 1–5, year, style, description). Use after search_wines to answer "where is it from?", "is it good?", etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          itemId: {
+            type: 'string',
+            description: 'Saved wine Item id from search_wines (source local)',
+          },
+          wineId: {
+            type: 'string',
+            description: 'Vivino wine id from search_wines',
+          },
+          vintageId: {
+            type: 'string',
+            description: 'Vivino vintage id from search_wines (preferred when available)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_saved_wines',
+      description:
+        'List wines already saved in the user\'s Malviviendo library. Optional name/keyword filter.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Optional filter by wine name, winery, or region',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'ensure_wine',
+      description:
+        'Save a wine to the user\'s library. ONLY call this after the user explicitly asks to save/add the wine, or confirms when you offered to save it. Prefer Vivino ids from search_wines when available. Can also create a simple named wine when Vivino has no match.',
+      parameters: {
+        type: 'object',
+        properties: {
+          itemId: {
+            type: 'string',
+            description: 'Existing local wine Item id — use as-is',
+          },
+          wineId: { type: 'string', description: 'Vivino wine id' },
+          vintageId: { type: 'string', description: 'Vivino vintage id' },
+          name: {
+            type: 'string',
+            description:
+              'Wine display name — required when creating without Vivino ids',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'link_wines_to_visit',
+      description:
+        'Attach one or more saved wines to an existing visit/experience. Resolve the visit with experienceId or place + date. Resolve wines with wineItemIds (from ensure_wine) or wineNames (will search/ensure).',
+      parameters: {
+        type: 'object',
+        properties: {
+          experienceId: {
+            type: 'string',
+            description: 'Visit id from find_visits_by_date, search_visits, or get_last_visit',
+          },
+          placeName: { type: 'string' },
+          placeId: { type: 'string' },
+          visitedAt: {
+            type: 'string',
+            description:
+              'Visit date to identify the visit when experienceId is unknown',
+          },
+          wineItemIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Saved wine Item ids to link',
+          },
+          wineNames: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              'Wine names to resolve via search/ensure, then link',
+          },
+          replace: {
+            type: 'boolean',
+            description:
+              'If true, replace existing linked wines. Default false (merge/add).',
+          },
+        },
       },
     },
   },

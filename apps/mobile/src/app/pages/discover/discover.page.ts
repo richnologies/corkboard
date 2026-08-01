@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
@@ -35,8 +35,10 @@ import {
   AssistantService,
   ChatMessage,
   ConfirmedMapPlace,
+  ConfirmedWine,
   MapPlaceCandidate,
   PendingVisitAction,
+  WineCandidate,
 } from '../../core/services/assistant.service';
 import { ConversationsService } from '../../core/services/conversations.service';
 import { SpeechInputService } from '../../core/services/speech-input.service';
@@ -44,6 +46,7 @@ import { MediaService } from '../../core/services/media.service';
 import { PhotoUrlService } from '../../core/services/photo-url.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { ChatLinksPipe } from '../../shared/pipes/chat-links.pipe';
 import {
   IMAGE_ACCEPT,
   ImagePrepareError,
@@ -72,6 +75,7 @@ interface PendingPhoto {
   standalone: true,
   imports: [
     DatePipe,
+    DecimalPipe,
     IonMenu,
     IonMenuButton,
     IonHeader,
@@ -89,6 +93,7 @@ interface PendingPhoto {
     IonItem,
     IonLabel,
     TranslatePipe,
+    ChatLinksPipe,
   ],
   templateUrl: './discover.page.html',
   styleUrl: './discover.page.scss',
@@ -121,6 +126,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   readonly activeTitle = signal<string | null>(null);
 
   private confirmedMapPlace: ConfirmedMapPlace | undefined;
+  private confirmedWine: ConfirmedWine | undefined;
   private companionResolutions: CompanionNameResolution[] = [];
   private pendingVisit: PendingVisitAction | undefined;
   private sessionPhotos: { key: string; thumbKey: string }[] = [];
@@ -128,7 +134,8 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   readonly examplePrompts = [
     'chat.exampleLastVisit',
     'chat.exampleNewVisit',
-    'chat.exampleWhoWith',
+    'chat.exampleWineQuestion',
+    'chat.exampleWineMemory',
   ] as const;
 
   ngOnInit() {
@@ -190,6 +197,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
         this.companionResolutions = [];
         this.pendingVisit = undefined;
         this.confirmedMapPlace = undefined;
+        this.confirmedWine = undefined;
         this.sessionPhotos = [];
         void this.menu.close('chat-history');
         this.scrollToBottom();
@@ -216,6 +224,21 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     };
     this.draft.set(
       this.i18n.t('chat.confirmMapPlace', { name: candidate.name }),
+    );
+    void this.send();
+  }
+
+  confirmWineCandidate(candidate: WineCandidate) {
+    this.confirmedWine = {
+      wineId: candidate.wineId,
+      vintageId: candidate.vintageId,
+      itemId: candidate.itemId,
+      name: candidate.name,
+    };
+    this.draft.set(
+      this.i18n.t('chat.confirmWine', {
+        name: candidate.displayName || candidate.name,
+      }),
     );
     void this.send();
   }
@@ -349,6 +372,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
 
       const history = this.messages();
       const confirmedMapPlace = this.confirmedMapPlace;
+      const confirmedWine = this.confirmedWine;
       const confirmedCompanions = this.companionResolutions.length
         ? [...this.companionResolutions]
         : undefined;
@@ -356,6 +380,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
       const conversationId = this.conversationId();
 
       this.confirmedMapPlace = undefined;
+      this.confirmedWine = undefined;
 
       this.assistant
         .chat(
@@ -364,6 +389,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
           {
             conversationId,
             confirmedMapPlace,
+            confirmedWine,
             confirmedCompanions,
             pendingVisit,
             photoThumbKeys,
@@ -399,6 +425,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
                 content: response.message,
                 relatedItems: response.relatedItems,
                 placeCandidates: response.placeCandidates,
+                wineCandidates: response.wineCandidates,
                 companionAmbiguities: response.companionAmbiguities,
                 pendingVisit: response.pendingVisit,
                 suggestedReplies: response.suggestedReplies,
@@ -448,8 +475,9 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
       photoKeys: message.photoKeys,
       relatedItems: message.metadata?.relatedItems,
       placeCandidates: message.metadata?.placeCandidates,
+      wineCandidates: message.metadata?.wineCandidates,
       companionAmbiguities: message.metadata?.companionAmbiguities,
-      pendingVisit: message.metadata?.pendingVisit,
+      pendingVisit: message.metadata?.pendingVisit as PendingVisitAction | undefined,
       suggestedReplies: message.metadata?.suggestedReplies,
       error: message.metadata?.error,
     };
@@ -465,6 +493,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     this.companionResolutions = [];
     this.pendingVisit = undefined;
     this.confirmedMapPlace = undefined;
+    this.confirmedWine = undefined;
     this.sessionPhotos = [];
     this.clearPendingPhotos();
   }

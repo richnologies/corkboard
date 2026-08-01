@@ -9,15 +9,61 @@ import {
 
 export interface Location {
   address?: string;
+  addressEn?: string;
+  addressEs?: string;
   city?: string;
+  cityEn?: string;
+  cityEs?: string;
   region?: string;
+  regionEn?: string;
+  regionEs?: string;
   country?: string;
+  countryEn?: string;
+  countryEs?: string;
   latitude?: number;
   longitude?: number;
   /** @deprecated Use googlePlaceId */
   placeId?: string;
   googlePlaceId?: string;
   googleMapsUrl?: string;
+}
+
+/** Catalog metadata for wine items (often filled from Vivino). */
+export interface WineDetails {
+  vivinoWineId?: string;
+  vivinoVintageId?: string;
+  vivinoUrl?: string;
+  winery?: string;
+  grapes?: string[];
+  grapesEn?: string[];
+  grapesEs?: string[];
+  region?: string;
+  regionEn?: string;
+  regionEs?: string;
+  country?: string;
+  countryEn?: string;
+  countryEs?: string;
+  style?: string;
+  styleEn?: string;
+  styleEs?: string;
+  /** Alcohol by volume, e.g. 14.5 */
+  alcoholPercentage?: number;
+  allergens?: string[];
+  allergensEn?: string[];
+  allergensEs?: string[];
+  /** @deprecated Prefer descriptionEn / descriptionEs */
+  description?: string;
+  descriptionEn?: string;
+  descriptionEs?: string;
+  price?: number;
+  priceCurrency?: string;
+  /** Vivino-style rating on a 1–5 scale */
+  rating?: number;
+  year?: string;
+  /** Absolute URL for display (Vivino CDN or signed S3 URL at read time) */
+  imageUrl?: string;
+  /** S3 object key for the cached bottle image in our storage */
+  imageKey?: string;
 }
 
 export interface ItemSource {
@@ -87,6 +133,18 @@ export interface ConversationMessageMetadata {
     address: string;
     category: string;
   }[];
+  wineCandidates?: {
+    index: number;
+    wineId: string;
+    vintageId?: string;
+    name: string;
+    displayName: string;
+    winery?: string;
+    region?: string;
+    year?: string;
+    rating?: number;
+    itemId?: string;
+  }[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: {
     type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
@@ -144,10 +202,14 @@ export interface Item {
   id: string;
   ownerId: string;
   name: string;
+  /** Localized display names when the place/wine name differs by language */
+  nameEn?: string;
+  nameEs?: string;
   category: ItemCategory;
   status: ItemStatus;
   rejectionReason?: string;
   location?: Location;
+  wine?: WineDetails;
   links: string[];
   photoKeys: string[];
   tags: string[];
@@ -164,6 +226,12 @@ export interface ExperiencePhoto {
   aiDescription?: string;
 }
 
+export interface ExperienceItemRef {
+  id: string;
+  name: string;
+  category: ItemCategory;
+}
+
 export interface Experience {
   id: string;
   itemId: string;
@@ -178,12 +246,18 @@ export interface Experience {
   /** Resolved from companionPersonIds on read */
   companions?: string[];
   companionPersonIds?: string[];
+  /** Wine items linked to this visit (e.g. bottles tried at a restaurant) */
+  wineItemIds: string[];
   photos?: ExperiencePhoto[];
   createdAt: string;
   updatedAt: string;
   /** Populated on read */
   authorDisplayName?: string;
   canEdit?: boolean;
+  /** Primary item (place or wine) this experience belongs to */
+  place?: ExperienceItemRef;
+  /** Linked wine items resolved for display */
+  wines?: ExperienceItemRef[];
 }
 
 /** Visit row for the calendar view (place name denormalized for display). */
@@ -197,6 +271,7 @@ export interface ExperienceCalendarEntry {
   companions?: string[];
   authorDisplayName?: string;
   photoCount: number;
+  wines?: ExperienceItemRef[];
 }
 
 export interface ItemShare {

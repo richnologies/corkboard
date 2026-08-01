@@ -123,11 +123,19 @@
   border: 1px solid var(--cork-border);
   box-shadow: var(--cork-shadow);
 
-  p {
+  p.chat-text {
     margin: 0;
     white-space: pre-wrap;
     line-height: 1.45;
     font-size: 15px;
+
+    a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      font-weight: 600;
+      word-break: break-word;
+    }
   }
 }
 
@@ -136,6 +144,10 @@
   border-color: transparent;
   color: #fff;
   border-bottom-right-radius: 6px;
+
+  .chat-text a {
+    color: #fff;
+  }
 }
 
 .chat-row-assistant .chat-bubble {

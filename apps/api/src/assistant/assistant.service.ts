@@ -4,12 +4,14 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Item, ItemCategory, ItemStatus, CompanionAmbiguity, Person, formatLocationSummary, locationMatchesQuery, resolveRelativeVisitDate, todayIsoInTimeZone } from '@org/domain';
+import { Item, ItemCategory, ItemStatus, CompanionAmbiguity, Person, formatLocationSummary, isWineCategory, locationMatchesQuery, resolveRelativeVisitDate, todayIsoInTimeZone } from '@org/domain';
 import { ItemsService } from '../items/items.service.js';
 import { ExperiencesService } from '../experiences/experiences.service.js';
 import { ExperienceSearchService } from '../experiences/experience-search.service.js';
 import { PeopleService } from '../people/people.service.js';
 import { PlacesService } from '../places/places.service.js';
+import { WinesService } from '../wines/wines.service.js';
+import { WineSearchResult } from '../wines/vivino.js';
 import { ConversationsService } from '../conversations/conversations.service.js';
 import { AssistantChatDto } from './dto/assistant-chat.dto.js';
 import { ASSISTANT_TOOLS } from './assistant.tools.js';
@@ -43,6 +45,19 @@ export interface MapPlaceCandidate {
   category: string;
 }
 
+export interface WineCandidate {
+  index: number;
+  wineId: string;
+  vintageId?: string;
+  name: string;
+  displayName: string;
+  winery?: string;
+  region?: string;
+  year?: string;
+  rating?: number;
+  itemId?: string;
+}
+
 export interface PendingVisitAction {
   type: 'log_visit' | 'create_place_and_log_visit' | 'update_visit';
   placeId?: string;
@@ -61,6 +76,7 @@ export interface AssistantChatResult {
   message: string;
   relatedItems: { id: string; name: string }[];
   placeCandidates?: MapPlaceCandidate[];
+  wineCandidates?: WineCandidate[];
   companionAmbiguities?: CompanionAmbiguity[];
   pendingVisit?: PendingVisitAction;
   suggestedReplies?: string[];
@@ -78,12 +94,13 @@ export class AssistantService {
     private readonly experienceSearchService: ExperienceSearchService,
     private readonly peopleService: PeopleService,
     private readonly placesService: PlacesService,
+    private readonly winesService: WinesService,
     private readonly conversationsService: ConversationsService,
   ) {}
 
   async chat(userId: string, dto: AssistantChatDto): Promise<AssistantChatResult> {
     const apiKey = this.config.get<string>('app.openai.apiKey');
-    const model = this.config.get<string>('app.openai.model') ?? 'gpt-4o-mini';
+    const model = this.config.get<string>('app.openai.model') ?? 'gpt-5.6-luna';
 
     if (!apiKey) {
       throw new ServiceUnavailableException(
@@ -98,6 +115,13 @@ export class AssistantService {
     let result: AssistantChatResult;
     if (dto.confirmedMapPlace?.googlePlaceId) {
       result = await this.resumeAfterMapPlaceConfirmation(
+        userId,
+        dto,
+        apiKey,
+        model,
+      );
+    } else if (dto.confirmedWine?.wineId || dto.confirmedWine?.itemId) {
+      result = await this.resumeAfterWineConfirmation(
         userId,
         dto,
         apiKey,
@@ -118,9 +142,11 @@ export class AssistantService {
     apiKey: string,
     model: string,
     resolvedPlace?: { id: string; name: string },
+    resolvedWine?: { id: string; name: string },
   ): Promise<AssistantChatResult> {
     let relatedItems = new Map<string, string>();
     let placeCandidates: MapPlaceCandidate[] = [];
+    let wineCandidates: WineCandidate[] = [];
     let companionAmbiguities: CompanionAmbiguity[] = [];
     let pendingVisit: PendingVisitAction | undefined;
     let loggedVisit = false;
@@ -144,17 +170,23 @@ export class AssistantService {
       {
         role: 'system',
         content: [
-          'You are Ambrosio, Malviviendo\'s friendly personal food & places assistant.',
-          'The user tracks restaurants and places they visit, with ratings, companions, and photos.',
+          'You are Ambrosio, Malviviendo\'s friendly personal food, places & wine assistant.',
+          'The user tracks restaurants/places they visit (ratings, companions, photos) and wines (library + bottles linked to visits).',
+          'SCOPE: Only help with this app — saved/visited places & restaurants, logging or editing visits, companions, photos, ratings, recommendations from their history, and wines (search, details, saving, linking to visits).',
+          'OFF-TOPIC: If the user asks about anything outside that scope (general trivia, news, homework, coding, unrelated travel facts, math, etc.), politely decline in one short sentence, say you only help with their places/visits/wines in Malviviendo, and offer to help with those instead. Do not answer the off-topic question even partially. Do not use tools for off-topic requests.',
           `Today is ${weekdayLabel}, ${today} (YYYY-MM-DD) in the user's local timezone (${timeZone}). Interpret relative dates like "today", "yesterday", or "last Tuesday" accordingly. You may pass either an ISO date or the relative phrase as visitedAt — the server resolves phrases.`,
           'For questions about what/where the user ate on a specific day ("last Wednesday", "ayer", "el miércoles pasado"), use find_visits_by_date with relativeDate or an ISO fromDate. Never use get_last_visit unless asking about one named place.',
           'get_last_visit only answers when the user last went to a specific saved place by name — not for date-based recall.',
+          'WINE: For questions about a bottle (origin, region, winery, grapes, whether it is good), use search_wines then get_wine_details. Vivino ratings are 1–5 (not the 0–10 visit scores). Be honest about ratings — cite the score when available. Prefer *Es fields when replying in Spanish and *En fields when replying in English (description, region, country, style, grapes, allergens). When sharing a Vivino URL, write it as a plain https URL or markdown [name](url) — the app renders links.',
+          'WINE MEMORY: For "what wine did we have last Wednesday / at X restaurant", use find_visits_by_date or search_visits / get_last_visit and read the wines field on visits. Prefer those over inventing bottles.',
+          'WINE SAVE: Never call ensure_wine until the user clearly asks to save/add the wine (or confirms after you offer). For statements like "I like X" or questions about a bottle: search_wines + get_wine_details, tell them about it, and ask whether they want it saved — use <<<replies: ...>>> for yes/no when helpful. If multiple matches, present options first; only ensure_wine after they pick AND confirm saving (or after an explicit save request).',
+          'WINE LINK: To attach bottles to a past visit, resolve the visit then link_wines_to_visit (after ensure_wine if needed — ask before creating new wines). When logging a new visit, pass wineNames/wineItemIds on log_visit or create_place_and_log_visit.',
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
-          'Use tools to look up real data before answering — never invent visits or places.',
-          'For questions about where the user has been (city, country, neighborhood), use list_visited_places with a city or country filter. Never infer location from the place name alone.',
+          'Use tools to look up real data before answering — never invent visits, places, or wines.',
+          'For questions about where the user has been (city, country, neighborhood), use list_visited_places with a city or country filter. Never infer location from the place name alone. Prefer nameEs/locationEs when replying in Spanish and nameEn/locationEn when replying in English.',
           'If list_visited_places returns places without a saved city, say so and suggest adding location in the place details.',
-          'Prefer search_visits for questions about companions, visit notes, food/atmosphere memories, or fuzzy visit recall.',
-          'Use search_places or get_last_visit when the user names a specific saved place.',
+          'Prefer search_visits for questions about companions, visit notes, food/atmosphere memories, linked wines, or fuzzy visit recall.',
+          'Use search_places or get_last_visit when the user names a specific saved place. Use search_wines for bottles.',
           'When a place is not saved yet: search_places first, then search_google_places if needed.',
           'If search_google_places returns exactly one match, call ensure_place_from_google with that googlePlaceId and continue — never ask the user to confirm a single match.',
           'If search_google_places returns multiple matches, present numbered options and wait for the user to pick one.',
@@ -169,9 +201,12 @@ export class AssistantService {
           'When logging a visit to an existing saved place, use log_visit.',
           'When the user wants to change, fix, or correct an existing visit, use search_visits or get_last_visit to find it, then update_visit. Never use log_visit or create_place_and_log_visit for edits.',
           'Use log_visit or create_place_and_log_visit only when the user is explicitly logging a new visit.',
-          'When several Google Maps candidates are returned, ask which one they mean by number or name — do not create a visit until they confirm.',
+          'When several Google Maps or wine candidates are returned, ask which one they mean by number or name — do not save until they confirm.',
           resolvedPlace
             ? `The user already confirmed "${resolvedPlace.name}" (placeId: ${resolvedPlace.id}). Answer their original question using get_last_visit or search_visits. Do NOT log a new visit.`
+            : null,
+          resolvedWine
+            ? `The user already confirmed wine "${resolvedWine.name}" (itemId: ${resolvedWine.id}). Continue with their request — get_wine_details, link_wines_to_visit, or answer — using this itemId. Do not ask them to pick the wine again.`
             : null,
           'Keep replies short and conversational (2-4 sentences unless listing matches).',
           'When you ask a clarifying question with short, tap-friendly answers (dates like today/yesterday, ratings 0–10, alone vs with someone, yes/no for coming back, etc.), end your message with exactly one machine line: <<<replies: Option1 | Option2 | Option3>>> in the user\'s language. Include 2–5 options. Only add that line when you are waiting for the user to answer — never on confirmations, finished logs, or lookup answers.',
@@ -202,6 +237,7 @@ export class AssistantService {
 
         const roundRelatedItems = new Map<string, string>();
         let roundPlaceCandidates: MapPlaceCandidate[] = [];
+        let roundWineCandidates: WineCandidate[] = [];
         let roundCompanionAmbiguities: CompanionAmbiguity[] = [];
         let roundPendingVisit: PendingVisitAction | undefined;
         let roundMissingFields: VisitLogMissingField[] | undefined;
@@ -216,6 +252,9 @@ export class AssistantService {
               roundRelatedItems,
               (candidates) => {
                 roundPlaceCandidates = candidates;
+              },
+              (candidates) => {
+                roundWineCandidates = candidates;
               },
             );
           } catch (error) {
@@ -233,6 +272,9 @@ export class AssistantService {
           if (this.isSuccessfulVisitLogResult(result)) {
             loggedVisit = true;
           }
+          if (this.isWinePickResult(result)) {
+            roundWineCandidates = result.candidates;
+          }
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
@@ -243,6 +285,9 @@ export class AssistantService {
         relatedItems = roundRelatedItems;
         if (roundPlaceCandidates.length) {
           placeCandidates = roundPlaceCandidates;
+        }
+        if (roundWineCandidates.length) {
+          wineCandidates = roundWineCandidates;
         }
         if (roundCompanionAmbiguities.length) {
           companionAmbiguities = roundCompanionAmbiguities;
@@ -267,6 +312,8 @@ export class AssistantService {
             ),
             placeCandidates:
               placeCandidates.length > 1 ? placeCandidates : undefined,
+            wineCandidates:
+              wineCandidates.length > 1 ? wineCandidates : undefined,
           };
         }
         continue;
@@ -286,6 +333,8 @@ export class AssistantService {
         })),
         placeCandidates:
           placeCandidates.length > 1 ? placeCandidates : undefined,
+        wineCandidates:
+          wineCandidates.length > 1 ? wineCandidates : undefined,
         suggestedReplies: parsed.suggestedReplies,
         loggedVisit: loggedVisit || undefined,
       };
@@ -311,6 +360,8 @@ export class AssistantService {
         tools: ASSISTANT_TOOLS,
         tool_choice: 'auto',
         temperature: 0.4,
+        // gpt-5.6* defaults to reasoning; tools on /chat/completions require none.
+        reasoning_effort: 'none',
       }),
     });
 
@@ -333,6 +384,7 @@ export class AssistantService {
     timeZone: string,
     relatedItems: Map<string, string>,
     onPlaceCandidates: (candidates: MapPlaceCandidate[]) => void,
+    onWineCandidates: (candidates: WineCandidate[]) => void,
   ): Promise<unknown> {
     const args = JSON.parse(toolCall.function.arguments || '{}') as Record<
       string,
@@ -376,6 +428,26 @@ export class AssistantService {
         return this.toolSearchVisits(userId, args, relatedItems);
       case 'search_people':
         return this.toolSearchPeople(userId, String(args['query'] ?? ''));
+      case 'search_wines':
+        return this.toolSearchWines(
+          userId,
+          String(args['query'] ?? ''),
+          relatedItems,
+          onWineCandidates,
+        );
+      case 'get_wine_details':
+        return this.toolGetWineDetails(userId, args, relatedItems);
+      case 'list_saved_wines':
+        return this.toolListSavedWines(userId, args, relatedItems);
+      case 'ensure_wine':
+        return this.toolEnsureWine(userId, args, relatedItems);
+      case 'link_wines_to_visit':
+        return this.toolLinkWinesToVisit(
+          userId,
+          args,
+          relatedItems,
+          onWineCandidates,
+        );
       default:
         return { error: `Unknown tool: ${toolCall.function.name}` };
     }
@@ -506,6 +578,14 @@ export class AssistantService {
       );
     }
 
+    const wineIds = await this.resolveWineIdsFromArgs(
+      userId,
+      args,
+      relatedItems,
+    );
+    if ('error' in wineIds) return wineIds;
+    if ('needsWinePick' in wineIds) return wineIds;
+
     const experience = await this.experiencesService.create(
       userId,
       place.item.id,
@@ -525,8 +605,13 @@ export class AssistantService {
           key: photo.key,
           thumbKey: photo.thumbKey,
         })),
+        wineItemIds: wineIds.ids.length ? wineIds.ids : undefined,
       },
     );
+
+    for (const wine of experience.wines ?? []) {
+      relatedItems.set(wine.id, wine.name);
+    }
 
     return {
       success: true,
@@ -538,6 +623,10 @@ export class AssistantService {
         companions: experience.companions ?? [],
         wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
+        wines: (experience.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       },
     };
   }
@@ -677,7 +766,10 @@ export class AssistantService {
     const city = args['city'] ? String(args['city']).trim() : undefined;
     const country = args['country'] ? String(args['country']).trim() : undefined;
 
-    let places = await this.itemsService.findAll(userId, { q: query });
+    let places = await this.itemsService.findAll(userId, {
+      q: query,
+      excludeCategory: ItemCategory.Wine,
+    });
 
     if (city) {
       places = places.filter((place) =>
@@ -759,6 +851,9 @@ export class AssistantService {
 
     for (const visit of visits.slice(0, 12)) {
       relatedItems.set(visit.itemId, visit.itemName);
+      for (const wine of visit.wines ?? []) {
+        relatedItems.set(wine.id, wine.name);
+      }
     }
 
     return {
@@ -774,6 +869,10 @@ export class AssistantService {
         notes: visit.notes,
         overallRating: visit.rating?.overall,
         photoCount: visit.photoCount,
+        wines: (visit.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       })),
       message:
         visits.length === 0
@@ -815,6 +914,9 @@ export class AssistantService {
     }
 
     const latest = experiences[0];
+    for (const wine of latest.wines ?? []) {
+      relatedItems?.set(wine.id, wine.name);
+    }
     return {
       place: this.placeSummary(place),
       lastVisit: {
@@ -824,6 +926,10 @@ export class AssistantService {
         notes: latest.notes,
         overallRating: latest.rating?.overall,
         photoCount: latest.photos?.length ?? 0,
+        wines: (latest.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       },
       totalVisits: experiences.length,
     };
@@ -885,6 +991,17 @@ export class AssistantService {
       };
     }
 
+    if (args['wineItemIds'] !== undefined || args['wineNames'] !== undefined) {
+      const wineIds = await this.resolveWineIdsFromArgs(
+        userId,
+        args,
+        relatedItems,
+      );
+      if ('error' in wineIds) return wineIds;
+      if ('needsWinePick' in wineIds) return wineIds;
+      updates['wineItemIds'] = wineIds.ids;
+    }
+
     if (!Object.keys(updates).length) {
       return { error: 'No changes provided. Specify what to update.' };
     }
@@ -896,6 +1013,9 @@ export class AssistantService {
     );
 
     relatedItems.set(itemId, itemName);
+    for (const wine of experience.wines ?? []) {
+      relatedItems.set(wine.id, wine.name);
+    }
 
     return {
       success: true,
@@ -908,6 +1028,10 @@ export class AssistantService {
         overallRating: experience.rating?.overall,
         wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
+        wines: (experience.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       },
     };
   }
@@ -1067,6 +1191,14 @@ export class AssistantService {
       );
     }
 
+    const wineIds = await this.resolveWineIdsFromArgs(
+      userId,
+      args,
+      relatedItems,
+    );
+    if ('error' in wineIds) return wineIds;
+    if ('needsWinePick' in wineIds) return wineIds;
+
     const experience = await this.experiencesService.create(userId, place.id, {
       visitedAt,
       companionPersonIds: companionResult.companionPersonIds,
@@ -1083,7 +1215,12 @@ export class AssistantService {
         key: photo.key,
         thumbKey: photo.thumbKey,
       })),
+      wineItemIds: wineIds.ids.length ? wineIds.ids : undefined,
     });
+
+    for (const wine of experience.wines ?? []) {
+      relatedItems.set(wine.id, wine.name);
+    }
 
     return {
       success: true,
@@ -1094,6 +1231,10 @@ export class AssistantService {
         companions: experience.companions ?? [],
         wouldReturn: experience.wouldReturn,
         photoCount: experience.photos?.length ?? 0,
+        wines: (experience.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       },
     };
   }
@@ -1150,6 +1291,9 @@ export class AssistantService {
         hit.experience.itemId,
         hit.itemName ?? hit.experience.itemId,
       );
+      for (const wine of hit.experience.wines ?? []) {
+        relatedItems.set(wine.id, wine.name);
+      }
     }
     return {
       count: hits.length,
@@ -1163,6 +1307,10 @@ export class AssistantService {
         overallRating: hit.experience.rating?.overall,
         snippet: hit.snippet,
         photoCount: hit.experience.photos?.length ?? 0,
+        wines: (hit.experience.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
       })),
     };
   }
@@ -1220,13 +1368,18 @@ export class AssistantService {
     };
   }
 
-  private placeSummary(place: Item & { latestVisit?: { visitedAt: string } }) {
-    const location = formatLocationSummary(place.location);
+  private placeSummary(
+    place: Item & { latestVisit?: { visitedAt: string } },
+  ) {
     return {
       id: place.id,
       name: place.name,
+      nameEn: place.nameEn || place.name,
+      nameEs: place.nameEs || place.name,
       category: place.category,
-      location: location ?? null,
+      location: formatLocationSummary(place.location, 'en') ?? null,
+      locationEn: formatLocationSummary(place.location, 'en') ?? null,
+      locationEs: formatLocationSummary(place.location, 'es') ?? null,
       latestVisit: place.latestVisit?.visitedAt,
     };
   }
@@ -1582,6 +1735,18 @@ export class AssistantService {
       'success' in result &&
       (result as { success?: unknown }).success === true &&
       'visit' in result
+    );
+  }
+
+  private isWinePickResult(
+    result: unknown,
+  ): result is { needsWinePick: true; candidates: WineCandidate[] } {
+    return (
+      typeof result === 'object' &&
+      result !== null &&
+      'needsWinePick' in result &&
+      (result as { needsWinePick?: unknown }).needsWinePick === true &&
+      Array.isArray((result as { candidates?: unknown }).candidates)
     );
   }
 
@@ -2078,6 +2243,7 @@ export class AssistantService {
         metadata: {
           relatedItems: result.relatedItems,
           placeCandidates: result.placeCandidates,
+          wineCandidates: result.wineCandidates,
           companionAmbiguities: result.companionAmbiguities,
           pendingVisit: result.pendingVisit,
           suggestedReplies: result.suggestedReplies,
@@ -2091,6 +2257,475 @@ export class AssistantService {
       ...result,
       conversationId: conversation.id,
       title: conversation.title,
+    };
+  }
+
+  private async resumeAfterWineConfirmation(
+    userId: string,
+    dto: AssistantChatDto,
+    apiKey: string,
+    model: string,
+  ): Promise<AssistantChatResult> {
+    const relatedItems = new Map<string, string>();
+    const confirmed = dto.confirmedWine!;
+    const ensured = await this.ensureWineItem(
+      userId,
+      {
+        itemId: confirmed.itemId,
+        wineId: confirmed.wineId,
+        vintageId: confirmed.vintageId,
+        name: confirmed.name,
+      },
+      relatedItems,
+    );
+    if ('error' in ensured) {
+      throw new BadRequestException(ensured.error);
+    }
+
+    return this.runAssistantLoop(
+      userId,
+      dto,
+      apiKey,
+      model,
+      undefined,
+      { id: ensured.item.id, name: ensured.item.name },
+    );
+  }
+
+  private async toolSearchWines(
+    userId: string,
+    query: string,
+    relatedItems: Map<string, string>,
+    onWineCandidates: (candidates: WineCandidate[]) => void,
+  ) {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return { error: 'query must be at least 2 characters' };
+    }
+
+    const results = await this.winesService.search(userId, trimmed, 8);
+    const candidates = results.map((result, index) =>
+      this.toWineCandidate(result, index + 1),
+    );
+
+    for (const result of results) {
+      if (result.itemId) relatedItems.set(result.itemId, result.name);
+    }
+
+    if (candidates.length > 1) {
+      onWineCandidates(candidates);
+    }
+
+    if (candidates.length === 1) {
+      const candidate = candidates[0];
+      return {
+        count: 1,
+        autoSelected: true,
+        candidate,
+        message: candidate.itemId
+          ? 'Only one match, already in the library. Use this itemId with get_wine_details. Do NOT call ensure_wine again.'
+          : 'Only one Vivino match. For Q&A use get_wine_details with these ids. Do NOT call ensure_wine unless the user explicitly asked to save/add the wine or confirmed saving.',
+      };
+    }
+
+    return {
+      count: candidates.length,
+      wines: candidates,
+      message: candidates.length
+        ? 'Present these numbered options. For Q&A call get_wine_details on the best match. Only ensure_wine after the user confirms they want to save it (or explicitly asked to add it).'
+        : 'No wine matches found. Ask for a clearer name. Only ensure_wine with just the name after the user confirms they want to add it.',
+    };
+  }
+
+  private async toolGetWineDetails(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+  ) {
+    const itemId = args['itemId'] ? String(args['itemId']).trim() : undefined;
+    const wineId = args['wineId'] ? String(args['wineId']).trim() : undefined;
+    const vintageId = args['vintageId']
+      ? String(args['vintageId']).trim()
+      : undefined;
+
+    if (!itemId && !wineId && !vintageId) {
+      return { error: 'Provide itemId, wineId, or vintageId' };
+    }
+
+    try {
+      const details = await this.winesService.details(userId, {
+        itemId,
+        wineId,
+        vintageId,
+      });
+      if (itemId) relatedItems.set(itemId, details.name);
+
+      const wine = details.wine;
+      return {
+        name: details.name,
+        winery: wine.winery,
+        region: wine.regionEs || wine.regionEn || wine.region,
+        regionEn: wine.regionEn || wine.region,
+        regionEs: wine.regionEs,
+        country: wine.countryEs || wine.countryEn || wine.country,
+        countryEn: wine.countryEn || wine.country,
+        countryEs: wine.countryEs,
+        grapes: wine.grapesEs?.length
+          ? wine.grapesEs
+          : wine.grapesEn || wine.grapes,
+        grapesEn: wine.grapesEn || wine.grapes,
+        grapesEs: wine.grapesEs,
+        style: wine.styleEs || wine.styleEn || wine.style,
+        styleEn: wine.styleEn || wine.style,
+        styleEs: wine.styleEs,
+        year: wine.year,
+        alcoholPercentage: wine.alcoholPercentage,
+        allergens: wine.allergensEs?.length
+          ? wine.allergensEs
+          : wine.allergensEn || wine.allergens,
+        allergensEn: wine.allergensEn || wine.allergens,
+        allergensEs: wine.allergensEs,
+        rating: wine.rating,
+        ratingScale: '1-5 (Vivino)',
+        price: wine.price,
+        priceCurrency: wine.priceCurrency,
+        description: wine.descriptionEs || wine.descriptionEn || wine.description,
+        descriptionEn: wine.descriptionEn || wine.description,
+        descriptionEs: wine.descriptionEs,
+        vivinoUrl: wine.vivinoUrl,
+        vivinoWineId: wine.vivinoWineId,
+        vivinoVintageId: wine.vivinoVintageId,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not load wine details';
+      return { error: message };
+    }
+  }
+
+  private async toolListSavedWines(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+  ) {
+    const query = args['query'] ? String(args['query']).trim() : undefined;
+    const wines = await this.itemsService.findAll(userId, {
+      category: ItemCategory.Wine,
+      q: query,
+    });
+
+    const limited = wines.slice(0, 20);
+    for (const wine of limited) {
+      relatedItems.set(wine.id, wine.name);
+    }
+
+    return {
+      count: wines.length,
+      wines: limited.map((wine) => this.wineSummary(wine)),
+    };
+  }
+
+  private async toolEnsureWine(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+  ) {
+    const ensured = await this.ensureWineItem(
+      userId,
+      {
+        itemId: args['itemId'] ? String(args['itemId']).trim() : undefined,
+        wineId: args['wineId'] ? String(args['wineId']).trim() : undefined,
+        vintageId: args['vintageId']
+          ? String(args['vintageId']).trim()
+          : undefined,
+        name: args['name'] ? String(args['name']).trim() : undefined,
+      },
+      relatedItems,
+    );
+    if ('error' in ensured) return ensured;
+
+    return {
+      success: true,
+      created: ensured.created,
+      wine: this.wineSummary(ensured.item),
+    };
+  }
+
+  private async toolLinkWinesToVisit(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+    onWineCandidates: (candidates: WineCandidate[]) => void,
+  ) {
+    const resolved = await this.resolveExperience(userId, args);
+    if ('error' in resolved || 'matches' in resolved) {
+      return resolved;
+    }
+
+    const wineIds = await this.resolveWineIdsFromArgs(
+      userId,
+      args,
+      relatedItems,
+      onWineCandidates,
+    );
+    if ('error' in wineIds) return wineIds;
+    if ('needsWinePick' in wineIds) return wineIds;
+    if (!wineIds.ids.length) {
+      return { error: 'Provide wineItemIds or wineNames to link.' };
+    }
+
+    const replace = args['replace'] === true;
+    let nextIds = wineIds.ids;
+    if (!replace) {
+      try {
+        const current = await this.experiencesService.findByIdForUser(
+          userId,
+          resolved.experienceId,
+        );
+        const existing = current.wineItemIds ?? [];
+        nextIds = [...new Set([...existing, ...wineIds.ids])];
+      } catch {
+        // fall through with resolved ids only
+      }
+    }
+
+    const experience = await this.experiencesService.update(
+      userId,
+      resolved.experienceId,
+      { wineItemIds: nextIds },
+    );
+
+    relatedItems.set(resolved.itemId, resolved.itemName);
+    for (const wine of experience.wines ?? []) {
+      relatedItems.set(wine.id, wine.name);
+    }
+
+    return {
+      success: true,
+      place: { id: resolved.itemId, name: resolved.itemName },
+      visit: {
+        id: experience.id,
+        visitedAt: experience.visitedAt,
+        wines: (experience.wines ?? []).map((wine) => ({
+          id: wine.id,
+          name: wine.name,
+        })),
+      },
+    };
+  }
+
+  private async resolveWineIdsFromArgs(
+    userId: string,
+    args: Record<string, unknown>,
+    relatedItems: Map<string, string>,
+    onWineCandidates?: (candidates: WineCandidate[]) => void,
+  ): Promise<
+    | { ids: string[] }
+    | { error: string }
+    | {
+        needsWinePick: true;
+        query: string;
+        candidates: WineCandidate[];
+        message: string;
+      }
+  > {
+    const ids = new Set<string>();
+
+    if (Array.isArray(args['wineItemIds'])) {
+      for (const raw of args['wineItemIds']) {
+        const id = String(raw).trim();
+        if (!id) continue;
+        try {
+          const item = await this.itemsService.findOne(userId, id);
+          if (!isWineCategory(item.category)) {
+            return { error: `${item.name} is not a wine.` };
+          }
+          ids.add(item.id);
+          relatedItems.set(item.id, item.name);
+        } catch {
+          return { error: `Wine not found: ${id}` };
+        }
+      }
+    }
+
+    if (Array.isArray(args['wineNames'])) {
+      for (const raw of args['wineNames']) {
+        const name = String(raw).trim();
+        if (!name) continue;
+
+        const search = await this.winesService.search(userId, name, 5);
+        const localExact = search.find(
+          (result) =>
+            result.itemId &&
+            result.name.toLowerCase() === name.toLowerCase(),
+        );
+        if (localExact?.itemId) {
+          ids.add(localExact.itemId);
+          relatedItems.set(localExact.itemId, localExact.name);
+          continue;
+        }
+
+        if (search.length === 1) {
+          const ensured = await this.ensureWineItem(
+            userId,
+            {
+              itemId: search[0].itemId,
+              wineId: search[0].wineId,
+              vintageId: search[0].vintageId,
+              name: search[0].name,
+            },
+            relatedItems,
+          );
+          if ('error' in ensured) return ensured;
+          ids.add(ensured.item.id);
+          continue;
+        }
+
+        if (search.length > 1) {
+          const candidates = search.map((result, index) =>
+            this.toWineCandidate(result, index + 1),
+          );
+          onWineCandidates?.(candidates);
+          return {
+            needsWinePick: true,
+            query: name,
+            candidates,
+            message: `Several wines match "${name}". Ask the user which one, then ensure_wine / link again.`,
+          };
+        }
+
+        const created = await this.ensureWineItem(
+          userId,
+          { name },
+          relatedItems,
+        );
+        if ('error' in created) return created;
+        ids.add(created.item.id);
+      }
+    }
+
+    return { ids: [...ids] };
+  }
+
+  private async ensureWineItem(
+    userId: string,
+    opts: {
+      itemId?: string;
+      wineId?: string;
+      vintageId?: string;
+      name?: string;
+    },
+    relatedItems: Map<string, string>,
+  ): Promise<{ item: Item; created: boolean } | { error: string }> {
+    if (opts.itemId) {
+      try {
+        const item = await this.itemsService.findOne(userId, opts.itemId);
+        if (!isWineCategory(item.category)) {
+          return { error: 'That item is not a wine.' };
+        }
+        relatedItems.set(item.id, item.name);
+        return { item, created: false };
+      } catch {
+        return { error: 'Wine not found in library.' };
+      }
+    }
+
+    if (opts.vintageId) {
+      const owned = await this.itemsService.findOwnedByVivinoVintageId(
+        userId,
+        opts.vintageId,
+      );
+      if (owned) {
+        relatedItems.set(owned.id, owned.name);
+        return { item: owned, created: false };
+      }
+    }
+
+    if (opts.wineId) {
+      const owned = await this.itemsService.findOwnedByVivinoWineId(
+        userId,
+        opts.wineId,
+      );
+      if (owned) {
+        relatedItems.set(owned.id, owned.name);
+        return { item: owned, created: false };
+      }
+    }
+
+    if (opts.wineId || opts.vintageId) {
+      try {
+        const details = await this.winesService.details(userId, {
+          wineId: opts.wineId,
+          vintageId: opts.vintageId,
+        });
+        const item = await this.itemsService.create(userId, {
+          name: details.name || opts.name || 'Wine',
+          category: ItemCategory.Wine,
+          status: ItemStatus.Wishlist,
+          wine: details.wine,
+        });
+        relatedItems.set(item.id, item.name);
+        return { item, created: true };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Could not save wine';
+        return { error: message };
+      }
+    }
+
+    const name = opts.name?.trim();
+    if (!name) {
+      return { error: 'Provide itemId, Vivino ids, or a wine name.' };
+    }
+
+    const existing = await this.itemsService.findAll(userId, {
+      category: ItemCategory.Wine,
+      q: name,
+    });
+    const exact = existing.find(
+      (wine) => wine.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (exact) {
+      relatedItems.set(exact.id, exact.name);
+      return { item: exact, created: false };
+    }
+
+    const item = await this.itemsService.create(userId, {
+      name,
+      category: ItemCategory.Wine,
+      status: ItemStatus.Wishlist,
+    });
+    relatedItems.set(item.id, item.name);
+    return { item, created: true };
+  }
+
+  private toWineCandidate(result: WineSearchResult, index: number): WineCandidate {
+    return {
+      index,
+      wineId: result.wineId,
+      vintageId: result.vintageId,
+      name: result.name,
+      displayName: result.displayName || result.name,
+      winery: result.winery,
+      region: result.region,
+      year: result.year,
+      rating: result.rating,
+      itemId: result.itemId,
+    };
+  }
+
+  private wineSummary(wine: Item) {
+    return {
+      id: wine.id,
+      name: wine.name,
+      winery: wine.wine?.winery,
+      region: wine.wine?.region,
+      country: wine.wine?.country,
+      year: wine.wine?.year,
+      rating: wine.wine?.rating,
+      vivinoWineId: wine.wine?.vivinoWineId,
+      vivinoVintageId: wine.wine?.vivinoVintageId,
+      vivinoUrl: wine.wine?.vivinoUrl,
     };
   }
 

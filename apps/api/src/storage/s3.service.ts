@@ -102,6 +102,64 @@ export class S3Service implements OnModuleInit {
     });
   }
 
+  /** Shared catalog object key for a cached wine bottle image. */
+  catalogWineImageKey(vintageId: string, extension = 'jpg'): string {
+    const safeId = vintageId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = extension.replace(/^\./, '').toLowerCase() || 'jpg';
+    return `catalog/wines/${safeId}.${ext}`;
+  }
+
+  isCatalogWineKey(key: string): boolean {
+    return key.startsWith('catalog/wines/');
+  }
+
+  async putObjectBuffer(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+  }
+
+  /**
+   * Download a remote image and store it under the given key.
+   * Returns the content type used.
+   */
+  async putObjectFromUrl(key: string, sourceUrl: string): Promise<string> {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        'User-Agent':
+          process.env.VIVINO_USER_AGENT ??
+          'Mozilla/5.0 (compatible; Malviviendo/1.0)',
+        Accept: 'image/*,*/*',
+      },
+      redirect: 'follow',
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download image (${response.status}) from ${sourceUrl.slice(0, 120)}`,
+      );
+    }
+
+    const contentType =
+      response.headers.get('content-type')?.split(';')[0]?.trim() ||
+      'image/jpeg';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) {
+      throw new Error('Downloaded image was empty');
+    }
+
+    await this.putObjectBuffer(key, buffer, contentType);
+    return contentType;
+  }
+
   assertUserKey(userId: string, key: string): void {
     const prefix = this.userPrefix(userId);
     if (!key.startsWith(prefix)) {

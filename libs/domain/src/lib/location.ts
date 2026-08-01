@@ -1,5 +1,7 @@
 import type { Location } from './interfaces.js';
 import { personNameSimilarity } from './people.js';
+import type { AppLocale } from './i18n-fields.js';
+import { pickLocalized } from './i18n-fields.js';
 
 /** Lowercase + accent folding for location text matching. */
 export function foldLocationText(value: string): string {
@@ -12,6 +14,24 @@ export function foldLocationText(value: string): string {
 
 const LOCATION_SIMILARITY_THRESHOLD = 0.6;
 
+function locationSearchFields(location: Location | undefined): string[] {
+  if (!location) return [];
+  return [
+    location.city,
+    location.cityEn,
+    location.cityEs,
+    location.region,
+    location.regionEn,
+    location.regionEs,
+    location.country,
+    location.countryEn,
+    location.countryEs,
+    location.address,
+    location.addressEn,
+    location.addressEs,
+  ].filter(Boolean) as string[];
+}
+
 /** Whether a saved location matches a city/country/area query. */
 export function locationMatchesQuery(
   location: Location | undefined,
@@ -20,13 +40,7 @@ export function locationMatchesQuery(
   const foldedQuery = foldLocationText(query);
   if (!foldedQuery) return true;
 
-  const fields = [
-    location?.city,
-    location?.region,
-    location?.country,
-    location?.address,
-  ].filter(Boolean) as string[];
-
+  const fields = locationSearchFields(location);
   if (!fields.length) return false;
 
   return fields.some((field) => {
@@ -44,10 +58,26 @@ export function locationMatchesQuery(
   });
 }
 
-export function formatLocationSummary(location?: Location): string | undefined {
+export function formatLocationSummary(
+  location?: Location,
+  locale: AppLocale = 'en',
+): string | undefined {
   if (!location) return undefined;
-  const parts = [location.city, location.region, location.country].filter(
-    Boolean,
-  ) as string[];
-  return parts.length ? parts.join(', ') : location.address;
+  const parts = [
+    pickLocalized(locale, location.cityEn, location.cityEs, location.city),
+    pickLocalized(locale, location.regionEn, location.regionEs, location.region),
+    pickLocalized(
+      locale,
+      location.countryEn,
+      location.countryEs,
+      location.country,
+    ),
+  ].filter(Boolean) as string[];
+  if (parts.length) return parts.join(', ');
+  return pickLocalized(
+    locale,
+    location.addressEn,
+    location.addressEs,
+    location.address,
+  );
 }

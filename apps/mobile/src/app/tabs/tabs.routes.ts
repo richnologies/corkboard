@@ -12,6 +12,11 @@ export const routes: Routes = [
           import('../pages/places/places.page').then((m) => m.PlacesPage),
       },
       {
+        path: 'wines',
+        loadComponent: () =>
+          import('../pages/wines/wines.page').then((m) => m.WinesPage),
+      },
+      {
         path: 'calendar',
         loadComponent: () =>
           import('../pages/calendar/calendar.page').then((m) => m.CalendarPage),

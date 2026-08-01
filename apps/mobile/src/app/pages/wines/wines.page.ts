@@ -1,5 +1,5 @@
-import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
@@ -21,48 +21,23 @@ import {
   IonCardContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { add, calendarOutline, closeOutline, heart, listOutline, locationOutline, mapOutline, restaurantOutline } from 'ionicons/icons';
+import { add, calendarOutline, heart, wineOutline } from 'ionicons/icons';
 import { ItemsService } from '../../core/services/items.service';
 import { TagsService } from '../../core/services/tags.service';
 import { Item, ItemCategory, ItemStatus, FAVORITE_TAG, hasFavoriteTag } from '@org/domain';
 import { categoryIcons } from '../../shared/labels';
-import { hasMapLocation } from '../../shared/maps';
-import { PlacesMapComponent } from '../../shared/components/places-map.component';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
-import {
-  itemDisplayName,
-  locationCityCountry,
-  locationLine,
-} from '../../shared/localized';
+import { itemDisplayName, wineRegion } from '../../shared/localized';
 
-addIcons({ add, calendarOutline, closeOutline, heart, listOutline, locationOutline, mapOutline, restaurantOutline });
-
-type PlacesViewMode = 'list' | 'map';
-
-const VIEW_MODE_STORAGE_KEY = 'corkboard.places.viewMode';
-
-function readStoredViewMode(): PlacesViewMode {
-  try {
-    return sessionStorage.getItem(VIEW_MODE_STORAGE_KEY) === 'map' ? 'map' : 'list';
-  } catch {
-    return 'list';
-  }
-}
-
-function storeViewMode(mode: PlacesViewMode) {
-  try {
-    sessionStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
-  } catch {
-    // sessionStorage may be unavailable in some contexts
-  }
-}
+addIcons({ add, calendarOutline, heart, wineOutline });
 
 @Component({
-  selector: 'app-places',
+  selector: 'app-wines',
   standalone: true,
   imports: [
     DatePipe,
+    DecimalPipe,
     IonHeader,
     IonToolbar,
     IonTitle,
@@ -79,19 +54,16 @@ function storeViewMode(mode: PlacesViewMode) {
     IonCardContent,
     IonButton,
     TranslatePipe,
-    PlacesMapComponent,
   ],
-  templateUrl: './places.page.html',
-  styleUrl: './places.page.scss',
+  templateUrl: './wines.page.html',
+  styleUrl: './wines.page.scss',
 })
-export class PlacesPage implements ViewWillEnter {
+export class WinesPage implements ViewWillEnter {
   private readonly itemsService = inject(ItemsService);
   private readonly tagsService = inject(TagsService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly i18n = inject(I18nService);
-
-  @ViewChild(PlacesMapComponent) private placesMap?: PlacesMapComponent;
 
   readonly items = signal<Item[]>([]);
   readonly tags = signal<{ tag: string; count: number }[]>([]);
@@ -99,13 +71,6 @@ export class PlacesPage implements ViewWillEnter {
   readonly activeStatus = signal<ItemStatus | undefined>(undefined);
   readonly activeTag = signal<string | undefined>(undefined);
   readonly search = signal('');
-  readonly viewMode = signal<PlacesViewMode>(readStoredViewMode());
-  readonly previewItem = signal<Item | null>(null);
-
-  readonly mappableItems = computed(() => this.items().filter(hasMapLocation));
-  readonly hiddenMapCount = computed(
-    () => this.items().length - this.mappableItems().length,
-  );
 
   readonly categoryIcons = categoryIcons;
   readonly statuses = Object.values(ItemStatus);
@@ -120,9 +85,6 @@ export class PlacesPage implements ViewWillEnter {
   ionViewWillEnter() {
     this.load({ silent: this.items().length > 0 });
     this.tagsService.list().subscribe((tags) => this.tags.set(tags));
-    if (this.viewMode() === 'map') {
-      setTimeout(() => this.placesMap?.refreshSize(), 150);
-    }
   }
 
   load(options?: { target?: HTMLIonRefresherElement; silent?: boolean }) {
@@ -130,7 +92,7 @@ export class PlacesPage implements ViewWillEnter {
       this.loading.set(true);
     }
     const filters: Record<string, string> = {
-      excludeCategory: ItemCategory.Wine,
+      category: ItemCategory.Wine,
     };
     const status = this.activeStatus();
     const tag = this.activeTag();
@@ -142,15 +104,8 @@ export class PlacesPage implements ViewWillEnter {
     this.itemsService.list(filters).subscribe({
       next: (items) => {
         this.items.set(items);
-        const previewId = this.previewItem()?.id;
-        if (previewId && !items.some((item) => item.id === previewId)) {
-          this.previewItem.set(null);
-        }
         this.loading.set(false);
         options?.target?.complete();
-        if (this.viewMode() === 'map') {
-          setTimeout(() => this.placesMap?.refreshSize(), 150);
-        }
       },
       error: () => {
         this.loading.set(false);
@@ -174,37 +129,14 @@ export class PlacesPage implements ViewWillEnter {
     this.load();
   }
 
-  setViewMode(mode: PlacesViewMode) {
-    this.viewMode.set(mode);
-    storeViewMode(mode);
-    if (mode === 'list') {
-      this.previewItem.set(null);
-    } else {
-      setTimeout(() => this.placesMap?.refreshSize(), 150);
-    }
-  }
-
-  onPinClicked(item: Item) {
-    this.previewItem.set(item);
-  }
-
-  closePreview() {
-    this.previewItem.set(null);
-  }
-
-  viewPreviewDetails() {
-    const item = this.previewItem();
-    if (item) {
-      this.openItem(item.id);
-    }
-  }
-
   openItem(id: string) {
     this.router.navigate(['/item', id]);
   }
 
   addItem() {
-    this.router.navigate(['/item/new']);
+    this.router.navigate(['/item/new'], {
+      queryParams: { category: ItemCategory.Wine },
+    });
   }
 
   isFavorite(item: Item): boolean {
@@ -215,12 +147,14 @@ export class PlacesPage implements ViewWillEnter {
     return itemDisplayName(item, this.i18n.locale());
   }
 
-  placeLocationLine(item: Item): string | null {
-    return locationLine(item.location, this.i18n.locale()) ?? null;
-  }
-
-  placeCityCountry(item: Item): string | null {
-    return locationCityCountry(item.location, this.i18n.locale()) ?? null;
+  wineMetaLine(item: Item): string | null {
+    const wine = item.wine;
+    if (!wine) return null;
+    const region = wineRegion(wine, this.i18n.locale());
+    const winery = wine.winery;
+    if (!winery && !region) return null;
+    if (winery && region) return `${winery} · ${region}`;
+    return winery || region || null;
   }
 
   displayTags(item: Item): string[] {

@@ -1,10 +1,20 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/tabs/places" />
+      <ion-back-button [defaultHref]="defaultHref()" />
     </ion-buttons>
-    <ion-title>{{ history()?.item?.name || ('item.place' | translate) }}</ion-title>
+    <ion-title>{{ displayName() || ('item.place' | translate) }}</ion-title>
     <ion-buttons slot="end">
+      @if (canDeleteItem()) {
+        <ion-button
+          color="danger"
+          (click)="confirmDeleteItem()"
+          [disabled]="deletingItem()"
+          [attr.aria-label]="deleteItemLabelKey() | translate"
+        >
+          <ion-icon slot="icon-only" name="trash-outline" />
+        </ion-button>
+      }
       <ion-button (click)="edit()">
         <ion-icon slot="icon-only" name="create-outline" />
       </ion-button>
@@ -22,12 +32,66 @@
       @if (h.item.status === rejectedStatus && h.item.rejectionReason) {
         <p class="rejection-reason">{{ h.item.rejectionReason }}</p>
       }
-      @if (h.item.location?.city || h.item.location?.address) {
+      @if (placeLocationLine(); as locLine) {
         <p class="location">
-          {{ h.item.location?.address || h.item.location?.city }}{{ h.item.location?.country ? ', ' + h.item.location?.country : '' }}
+          {{ locLine }}
+        </p>
+      }
+      @if (wineRegionLine(); as wineLine) {
+        <p class="location">
+          {{ wineLine }}
+          @if (h.item.wine?.rating != null) {
+            · {{ h.item.wine?.rating | number: '1.1-1' }}/5
+          }
         </p>
       }
     </div>
+
+    @if (h.item.wine; as wine) {
+      <ion-card class="item-card">
+        <ion-card-content>
+          @if (wine.imageUrl) {
+            <img class="wine-hero" [src]="wine.imageUrl" [alt]="displayName()" />
+          }
+          <h3>{{ 'item.wineDetailsTitle' | translate }}</h3>
+          @if (wine.winery) {
+            <p><strong>{{ 'item.winery' | translate }}:</strong> {{ wine.winery }}</p>
+          }
+          @if (wineGrapesLine(wine); as grapes) {
+            <p><strong>{{ 'item.grapes' | translate }}:</strong> {{ grapes }}</p>
+          }
+          @if (wineRegionCountryLine(wine); as regionCountry) {
+            <p><strong>{{ 'item.wineRegion' | translate }}:</strong> {{ regionCountry }}</p>
+          }
+          @if (wineStyleLine(wine); as style) {
+            <p><strong>{{ 'item.wineStyle' | translate }}:</strong> {{ style }}</p>
+          }
+          @if (wine.year) {
+            <p><strong>{{ 'item.wineYear' | translate }}:</strong> {{ wine.year }}</p>
+          }
+          @if (wine.alcoholPercentage != null) {
+            <p><strong>{{ 'item.alcoholPercentage' | translate }}:</strong> {{ wine.alcoholPercentage }}%</p>
+          }
+          @if (wineAllergensLine(wine); as allergens) {
+            <p><strong>{{ 'item.allergens' | translate }}:</strong> {{ allergens }}</p>
+          }
+          @if (wine.rating != null) {
+            <p><strong>{{ 'item.wineRating' | translate }}:</strong> {{ wine.rating | number: '1.1-1' }}/5</p>
+          }
+          @if (wine.price != null) {
+            <p><strong>{{ 'item.winePrice' | translate }}:</strong> {{ wine.price | number: '1.0-2' }}{{ wine.priceCurrency ? ' ' + wine.priceCurrency : '' }}</p>
+          }
+          @if (wineDescription(wine); as description) {
+            <p class="notes">{{ description }}</p>
+          }
+          @if (wine.vivinoUrl) {
+            <ion-button expand="block" fill="outline" (click)="openVivino()">
+              {{ 'item.openVivino' | translate }}
+            </ion-button>
+          }
+        </ion-card-content>
+      </ion-card>
+    }
 
     @if (showsLocation() && (hasLocation() || hasGoogleMaps())) {
       @if (hasLocation()) {
@@ -164,11 +228,34 @@
                 </div>
               }
 
+              @if (isLinkedVisit(exp) && exp.place; as place) {
+                <p class="linked-place">
+                  <ion-icon name="map-outline" />
+                  <button type="button" class="link-button" (click)="openPlace(place.id)">
+                    {{ 'item.triedAt' | translate: { place: place.name } }}
+                  </button>
+                </p>
+              }
+
               @if (companionsLabel(exp); as companions) {
                 <p class="companions">
                   <ion-icon name="people-outline" />
                   {{ 'item.visitedWith' | translate }}: {{ companions }}
                 </p>
+              }
+
+              @if (exp.wines?.length) {
+                <div class="linked-wines">
+                  <p class="linked-wines-label">
+                    <ion-icon name="wine-outline" />
+                    {{ 'item.winesWithVisit' | translate }}
+                  </p>
+                  <div class="wine-chips">
+                    @for (wine of exp.wines!; track wine.id) {
+                      <ion-chip (click)="openWine(wine.id)">{{ wine.name }}</ion-chip>
+                    }
+                  </div>
+                </div>
               }
 
               @if (exp.notes) {
@@ -268,6 +355,13 @@
             [personIds]="companionPersonIds()"
             (personIdsChange)="companionPersonIds.set($event)"
           />
+
+          @if (showsWinePicker()) {
+            <app-wine-picker
+              [wineIds]="wineItemIds()"
+              (wineIdsChange)="wineItemIds.set($event)"
+            />
+          }
 
           <ion-item>
             <ion-textarea

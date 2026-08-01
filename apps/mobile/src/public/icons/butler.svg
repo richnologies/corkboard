@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 24 360 464" aria-hidden="true">
+  <!-- Head -->
+  <circle
+    cx="236"
+    cy="92"
+    r="52"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="32"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Bow tie -->
+  <path
+    d="M178 158 L236 186 L294 158 L236 214 Z"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="28"
+    stroke-linejoin="round"
+  />
+  <circle cx="236" cy="186" r="10" fill="currentColor" />
+  <!-- Tuxedo body -->
+  <path
+    d="M120 472 V288 C120 242 164 214 236 214 C308 214 352 242 352 288 V360"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="32"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Lapels -->
+  <path
+    d="M236 214 L192 358"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="28"
+    stroke-linecap="round"
+  />
+  <path
+    d="M236 214 L280 358"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="28"
+    stroke-linecap="round"
+  />
+  <!-- Buttons -->
+  <circle cx="236" cy="292" r="10" fill="currentColor" />
+  <circle cx="236" cy="340" r="10" fill="currentColor" />
+  <!-- Serving tray (arm + plate) -->
+  <path
+    d="M352 340 H430"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="32"
+    stroke-linecap="round"
+  />
+  <ellipse
+    cx="430"
+    cy="316"
+    rx="44"
+    ry="20"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="28"
+  />
+  <path
+    d="M416 296 V274"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="24"
+    stroke-linecap="round"
+  />
+  <circle cx="416" cy="260" r="16" fill="none" stroke="currentColor" stroke-width="24" />
+</svg>

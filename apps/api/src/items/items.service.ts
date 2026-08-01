@@ -2,13 +2,24 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { categoryHasLocation, ItemStatus, locationMatchesQuery } from '@org/domain';
+import {
+  categoryHasLocation,
+  hasBothLocales,
+  ItemCategory,
+  ItemStatus,
+  isWineCategory,
+  locationMatchesQuery,
+  Item as ItemEntity,
+  Location,
+  WineDetails,
+} from '@org/domain';
 import { Item, ItemDocument } from './item.schema.js';
 import { CreateItemDto, ItemQueryDto, UpdateItemDto } from './dto/item.dto.js';
 import { SharingService } from '../sharing/sharing.service.js';
@@ -19,9 +30,13 @@ import {
   prepareItemWrite,
 } from './item-normalize.js';
 import { PeopleService } from '../people/people.service.js';
+import { S3Service } from '../storage/s3.service.js';
+import { OpenAiService } from '../openai/openai.service.js';
 
 @Injectable()
 export class ItemsService implements OnModuleInit {
+  private readonly logger = new Logger(ItemsService.name);
+
   constructor(
     @InjectModel(Item.name) private readonly itemModel: Model<ItemDocument>,
     @Inject(forwardRef(() => SharingService))
@@ -29,6 +44,8 @@ export class ItemsService implements OnModuleInit {
     @Inject(forwardRef(() => ExperiencesService))
     private readonly experiencesService: ExperiencesService,
     private readonly peopleService: PeopleService,
+    private readonly s3Service: S3Service,
+    private readonly openai: OpenAiService,
   ) {}
 
   async onModuleInit() {
@@ -58,8 +75,11 @@ export class ItemsService implements OnModuleInit {
     if (!categoryHasLocation(dto.category)) {
       delete payload.location;
     }
+    if (!isWineCategory(dto.category)) {
+      delete payload.wine;
+    }
     const item = await this.itemModel.create(payload);
-    return mapItem(item);
+    return this.withResolvedWineImage(mapItem(item));
   }
 
   async findAll(userId: string, query: ItemQueryDto) {
@@ -79,6 +99,9 @@ export class ItemsService implements OnModuleInit {
 
     if (query.status) filter.status = query.status;
     if (query.category) filter.category = query.category;
+    else if (query.excludeCategory) {
+      filter.category = { $ne: query.excludeCategory };
+    }
     if (query.sourceType) filter['source.type'] = query.sourceType;
     if (query.referrerName) {
       filter['source.referrerName'] = new RegExp(query.referrerName, 'i');
@@ -107,13 +130,14 @@ export class ItemsService implements OnModuleInit {
       userId,
       items.map((item) => item.id),
     );
-    return items.map((doc) => {
+    const mapped = items.map((doc) => {
       const item = mapItem(doc);
       const latest = latestVisits.get(item.id);
       return latest
         ? { ...item, latestVisit: mapLatestVisitSummary(latest) }
         : item;
     });
+    return Promise.all(mapped.map((item) => this.withResolvedWineImage(item)));
   }
 
   private readonly searchStopWords = new Set([
@@ -150,14 +174,42 @@ export class ItemsService implements OnModuleInit {
     const terms = this.searchTerms(search);
     const fields = [
       'name',
+      'nameEn',
+      'nameEs',
       'location.city',
+      'location.cityEn',
+      'location.cityEs',
       'location.country',
+      'location.countryEn',
+      'location.countryEs',
       'location.region',
+      'location.regionEn',
+      'location.regionEs',
       'location.address',
+      'location.addressEn',
+      'location.addressEs',
       'tags',
       'source.referrerName',
       'source.notes',
       'rejectionReason',
+      'wine.winery',
+      'wine.region',
+      'wine.regionEn',
+      'wine.regionEs',
+      'wine.country',
+      'wine.countryEn',
+      'wine.countryEs',
+      'wine.style',
+      'wine.styleEn',
+      'wine.styleEs',
+      'wine.year',
+      'wine.grapes',
+      'wine.grapesEn',
+      'wine.grapesEs',
+      'wine.description',
+      'wine.descriptionEn',
+      'wine.descriptionEs',
+      'wine.vivinoWineId',
     ];
 
     const termFilters = terms.map((term) => {
@@ -193,7 +245,13 @@ export class ItemsService implements OnModuleInit {
     value: string,
   ): Record<string, unknown> {
     const pattern = new RegExp(this.escapeRegex(value.trim()), 'i');
-    return { [field]: pattern };
+    return {
+      $or: [
+        { [field]: pattern },
+        { [`${field}En`]: pattern },
+        { [`${field}Es`]: pattern },
+      ],
+    };
   }
 
   async findVisitedPlaces(
@@ -230,7 +288,8 @@ export class ItemsService implements OnModuleInit {
 
   async findOne(userId: string, itemId: string) {
     const item = await this.getAccessibleItem(userId, itemId);
-    return mapItem(item);
+    const mapped = await this.withResolvedWineImage(mapItem(item));
+    return this.ensurePlaceLocalized(userId, mapped);
   }
 
   async findOwnedByGooglePlaceId(ownerId: string, googlePlaceId: string) {
@@ -238,6 +297,26 @@ export class ItemsService implements OnModuleInit {
       .findOne({
         ownerId: new Types.ObjectId(ownerId),
         'location.googlePlaceId': googlePlaceId,
+      })
+      .exec();
+    return item ? mapItem(item) : null;
+  }
+
+  async findOwnedByVivinoWineId(ownerId: string, vivinoWineId: string) {
+    const item = await this.itemModel
+      .findOne({
+        ownerId: new Types.ObjectId(ownerId),
+        'wine.vivinoWineId': vivinoWineId,
+      })
+      .exec();
+    return item ? mapItem(item) : null;
+  }
+
+  async findOwnedByVivinoVintageId(ownerId: string, vivinoVintageId: string) {
+    const item = await this.itemModel
+      .findOne({
+        ownerId: new Types.ObjectId(ownerId),
+        'wine.vivinoVintageId': vivinoVintageId,
       })
       .exec();
     return item ? mapItem(item) : null;
@@ -264,6 +343,10 @@ export class ItemsService implements OnModuleInit {
     if (!categoryHasLocation(category)) {
       unset.location = 1;
     }
+    if (!isWineCategory(category)) {
+      unset.wine = 1;
+      delete update.wine;
+    }
     if (prepared.unsetRejectionReason) {
       unset.rejectionReason = 1;
       delete update.rejectionReason;
@@ -279,7 +362,7 @@ export class ItemsService implements OnModuleInit {
         { new: true },
       )
       .exec();
-    return mapItem(item!);
+    return this.withResolvedWineImage(mapItem(item!));
   }
 
   async remove(userId: string, itemId: string) {
@@ -303,6 +386,26 @@ export class ItemsService implements OnModuleInit {
       throw new ForbiddenException('You do not have access to this item');
     }
     return item;
+  }
+
+  /** Lightweight lookup for experience enrichment (no access check). */
+  async findSummariesByIds(
+    itemIds: string[],
+  ): Promise<Map<string, { id: string; name: string; category: ItemCategory }>> {
+    const unique = [...new Set(itemIds.filter((id) => Types.ObjectId.isValid(id)))];
+    if (!unique.length) return new Map();
+
+    const docs = await this.itemModel
+      .find({ _id: { $in: unique.map((id) => new Types.ObjectId(id)) } })
+      .select({ name: 1, category: 1 })
+      .exec();
+
+    return new Map(
+      docs.map((doc) => [
+        doc.id,
+        { id: doc.id, name: doc.name, category: doc.category },
+      ]),
+    );
   }
 
   async assertCanEdit(userId: string, itemId: string): Promise<void> {
@@ -345,5 +448,115 @@ export class ItemsService implements OnModuleInit {
       },
       { $set: { status: ItemStatus.Visited } },
     );
+  }
+
+  private async withResolvedWineImage(item: ItemEntity): Promise<ItemEntity> {
+    if (!item.wine?.imageKey) return item;
+    try {
+      const imageUrl = await this.s3Service.createViewUrl(item.wine.imageKey);
+      const wine: WineDetails = { ...item.wine, imageUrl };
+      return { ...item, wine };
+    } catch {
+      return item;
+    }
+  }
+
+  private needsPlaceLocalization(item: ItemEntity): boolean {
+    if (!categoryHasLocation(item.category) || isWineCategory(item.category)) {
+      return false;
+    }
+    if (!hasBothLocales(item.nameEn, item.nameEs)) return true;
+    const loc = item.location;
+    if (!loc) return false;
+    if (loc.city && !hasBothLocales(loc.cityEn, loc.cityEs)) return true;
+    if (loc.country && !hasBothLocales(loc.countryEn, loc.countryEs)) {
+      return true;
+    }
+    if (loc.region && !hasBothLocales(loc.regionEn, loc.regionEs)) return true;
+    if (loc.address && !hasBothLocales(loc.addressEn, loc.addressEs)) {
+      return true;
+    }
+    return false;
+  }
+
+  private async ensurePlaceLocalized(
+    userId: string,
+    item: ItemEntity,
+  ): Promise<ItemEntity> {
+    if (!this.needsPlaceLocalization(item)) return item;
+
+    try {
+      const enrichment = await this.openai.enrichPlaceFromWeb({
+        name: item.name,
+        address: item.location?.address,
+        city: item.location?.city,
+        region: item.location?.region,
+        country: item.location?.country,
+      });
+
+      const nameEn = item.nameEn || enrichment.nameEn || item.name;
+      const nameEs = item.nameEs || enrichment.nameEs || item.name;
+      const location: Location | undefined = item.location
+        ? {
+            ...item.location,
+            addressEn:
+              item.location.addressEn ||
+              enrichment.addressEn ||
+              item.location.address,
+            addressEs:
+              item.location.addressEs ||
+              enrichment.addressEs ||
+              item.location.address,
+            address:
+              item.location.address ||
+              enrichment.addressEn ||
+              enrichment.addressEs,
+            cityEn:
+              item.location.cityEn || enrichment.cityEn || item.location.city,
+            cityEs:
+              item.location.cityEs || enrichment.cityEs || item.location.city,
+            city:
+              item.location.city || enrichment.cityEn || enrichment.cityEs,
+            regionEn:
+              item.location.regionEn ||
+              enrichment.regionEn ||
+              item.location.region,
+            regionEs:
+              item.location.regionEs ||
+              enrichment.regionEs ||
+              item.location.region,
+            region:
+              item.location.region ||
+              enrichment.regionEn ||
+              enrichment.regionEs,
+            countryEn:
+              item.location.countryEn ||
+              enrichment.countryEn ||
+              item.location.country,
+            countryEs:
+              item.location.countryEs ||
+              enrichment.countryEs ||
+              item.location.country,
+            country:
+              item.location.country ||
+              enrichment.countryEn ||
+              enrichment.countryEs,
+          }
+        : undefined;
+
+      const updated = await this.update(userId, item.id, {
+        nameEn,
+        nameEs,
+        ...(location ? { location } : {}),
+      });
+      return updated;
+    } catch (error) {
+      this.logger.warn(
+        `Place localization skipped for ${item.id}: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      return item;
+    }
   }
 }

@@ -6,6 +6,8 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -18,7 +20,23 @@ class LocationDto {
 
   @IsOptional()
   @IsString()
+  addressEn?: string;
+
+  @IsOptional()
+  @IsString()
+  addressEs?: string;
+
+  @IsOptional()
+  @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  cityEn?: string;
+
+  @IsOptional()
+  @IsString()
+  cityEs?: string;
 
   @IsOptional()
   @IsString()
@@ -26,7 +44,23 @@ class LocationDto {
 
   @IsOptional()
   @IsString()
+  regionEn?: string;
+
+  @IsOptional()
+  @IsString()
+  regionEs?: string;
+
+  @IsOptional()
+  @IsString()
   country?: string;
+
+  @IsOptional()
+  @IsString()
+  countryEn?: string;
+
+  @IsOptional()
+  @IsString()
+  countryEs?: string;
 
   @IsOptional()
   @IsNumber()
@@ -47,6 +81,135 @@ class LocationDto {
   @IsOptional()
   @IsUrl()
   googleMapsUrl?: string;
+}
+
+class WineDetailsDto {
+  @IsOptional()
+  @IsString()
+  vivinoWineId?: string;
+
+  @IsOptional()
+  @IsString()
+  vivinoVintageId?: string;
+
+  @IsOptional()
+  @IsUrl()
+  vivinoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  winery?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  grapes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  grapesEn?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  grapesEs?: string[];
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  regionEn?: string;
+
+  @IsOptional()
+  @IsString()
+  regionEs?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  countryEn?: string;
+
+  @IsOptional()
+  @IsString()
+  countryEs?: string;
+
+  @IsOptional()
+  @IsString()
+  style?: string;
+
+  @IsOptional()
+  @IsString()
+  styleEn?: string;
+
+  @IsOptional()
+  @IsString()
+  styleEs?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  alcoholPercentage?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergens?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergensEn?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allergensEs?: string[];
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  descriptionEn?: string;
+
+  @IsOptional()
+  @IsString()
+  descriptionEs?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price?: number;
+
+  @IsOptional()
+  @IsString()
+  priceCurrency?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(5)
+  rating?: number;
+
+  @IsOptional()
+  @IsString()
+  year?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  imageKey?: string;
 }
 
 class SourceDto {
@@ -74,6 +237,14 @@ export class CreateItemDto {
   @IsString()
   name!: string;
 
+  @IsOptional()
+  @IsString()
+  nameEn?: string;
+
+  @IsOptional()
+  @IsString()
+  nameEs?: string;
+
   @IsEnum(ItemCategory)
   category!: ItemCategory;
 
@@ -85,6 +256,11 @@ export class CreateItemDto {
   @ValidateNested()
   @Type(() => LocationDto)
   location?: LocationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => WineDetailsDto)
+  wine?: WineDetailsDto;
 
   @IsOptional()
   @IsArray()
@@ -117,6 +293,14 @@ export class UpdateItemDto {
   name?: string;
 
   @IsOptional()
+  @IsString()
+  nameEn?: string;
+
+  @IsOptional()
+  @IsString()
+  nameEs?: string;
+
+  @IsOptional()
   @IsEnum(ItemCategory)
   category?: ItemCategory;
 
@@ -128,6 +312,11 @@ export class UpdateItemDto {
   @ValidateNested()
   @Type(() => LocationDto)
   location?: LocationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => WineDetailsDto)
+  wine?: WineDetailsDto;
 
   @IsOptional()
   @IsArray()
@@ -162,6 +351,10 @@ export class ItemQueryDto {
   @IsOptional()
   @IsEnum(ItemCategory)
   category?: ItemCategory;
+
+  @IsOptional()
+  @IsEnum(ItemCategory)
+  excludeCategory?: ItemCategory;
 
   @IsOptional()
   @IsEnum(SourceType)

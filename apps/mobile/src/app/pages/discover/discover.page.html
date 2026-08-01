@@ -73,7 +73,7 @@
       @for (message of messages(); track message.id) {
         <div class="chat-row" [class.chat-row-user]="message.role === 'user'" [class.chat-row-assistant]="message.role === 'assistant'">
           <div class="chat-bubble" [class.chat-bubble-error]="message.error">
-            <p>{{ message.content }}</p>
+            <p class="chat-text" [innerHTML]="message.content | chatLinks"></p>
 
             @if (message.photoPreviewUrls?.length) {
               <div class="chat-photo-strip">
@@ -120,6 +120,34 @@
               </div>
             }
 
+            @if (message.wineCandidates?.length) {
+              <div class="chat-map-candidates">
+                @for (candidate of message.wineCandidates!; track candidate.wineId + (candidate.vintageId || '') + candidate.index) {
+                  <button
+                    type="button"
+                    class="map-candidate"
+                    (click)="confirmWineCandidate(candidate)"
+                    [disabled]="sending()"
+                  >
+                    <span class="map-candidate-index">{{ candidate.index }}</span>
+                    <span class="map-candidate-copy">
+                      <strong>{{ candidate.displayName || candidate.name }}</strong>
+                      <span>
+                        @if (candidate.winery || candidate.region || candidate.year) {
+                          {{ candidate.winery }}@if (candidate.winery && (candidate.region || candidate.year)) { · }{{ candidate.region }}@if (candidate.region && candidate.year) { · }{{ candidate.year }}
+                        } @else {
+                          {{ 'chat.wineCandidate' | translate }}
+                        }
+                        @if (candidate.rating != null) {
+                          · {{ candidate.rating | number: '1.1-1' }}/5
+                        }
+                      </span>
+                    </span>
+                  </button>
+                }
+              </div>
+            }
+
             @if (message.companionAmbiguities?.length && message.pendingVisit) {
               <div class="chat-companion-ambiguities">
                 @for (ambiguity of message.companionAmbiguities!; track ambiguity.query) {
@@ -157,7 +185,8 @@
               message.suggestedReplies?.length &&
               isLatestAnswerableMessage(message) &&
               !message.companionAmbiguities?.length &&
-              !message.placeCandidates?.length
+              !message.placeCandidates?.length &&
+              !message.wineCandidates?.length
             ) {
               <div class="chat-suggested-replies">
                 @for (reply of message.suggestedReplies!; track reply) {

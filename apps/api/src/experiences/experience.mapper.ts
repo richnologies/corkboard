@@ -21,6 +21,7 @@ export function mapExperience(doc: ExperienceDocument): ExperienceEntity {
     notes: doc.notes,
     wouldReturn: doc.wouldReturn,
     companionPersonIds: (doc.companionPersonIds ?? []).map((id) => String(id)),
+    wineItemIds: (doc.wineItemIds ?? []).map((id) => String(id)),
     photos: doc.photos?.length
       ? (doc.photos.map((p) => ({
           key: p.key,
@@ -40,6 +41,8 @@ export function enrichExperience(
     companions?: string[];
     authorDisplayName?: string;
     canEdit?: boolean;
+    place?: Experience['place'];
+    wines?: Experience['wines'];
   },
 ): Experience {
   return {
@@ -47,5 +50,7 @@ export function enrichExperience(
     companions: extras.companions?.length ? extras.companions : undefined,
     authorDisplayName: extras.authorDisplayName,
     canEdit: extras.canEdit,
+    place: extras.place,
+    wines: extras.wines?.length ? extras.wines : undefined,
   };
 }

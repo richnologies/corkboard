@@ -18,6 +18,23 @@ export class ConfirmedMapPlaceDto {
   name?: string;
 }
 
+export class ConfirmedWineDto {
+  @IsString()
+  wineId!: string;
+
+  @IsOptional()
+  @IsString()
+  vintageId?: string;
+
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
 export class ConfirmedCompanionDto {
   @IsString()
   query!: string;
@@ -106,6 +123,11 @@ export class AssistantChatDto {
   @ValidateNested()
   @Type(() => ConfirmedMapPlaceDto)
   confirmedMapPlace?: ConfirmedMapPlaceDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ConfirmedWineDto)
+  confirmedWine?: ConfirmedWineDto;
 
   @IsOptional()
   @IsArray()

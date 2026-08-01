@@ -5,3 +5,4 @@ export * from './lib/tags.js';
 export * from './lib/people.js';
 export * from './lib/location.js';
 export * from './lib/dates.js';
+export * from './lib/i18n-fields.js';

@@ -1,0 +1,89 @@
+<div class="wine-picker">
+  <p class="section-label">{{ labelKey() | translate }}</p>
+
+  @if (wineIds().length) {
+    <div class="selected-wines">
+      @for (id of wineIds(); track id) {
+        <ion-chip class="wine-pill selected">
+          <ion-label>{{ wineName(id) }}</ion-label>
+          @if (wineMeta(id); as meta) {
+            <span class="meta-badge">{{ meta }}</span>
+          }
+          <button
+            type="button"
+            class="remove-btn"
+            (click)="removeWine(id, $event)"
+            [attr.aria-label]="'item.winesRemove' | translate"
+          >
+            <ion-icon name="close-circle" />
+          </button>
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ emptyHintKey() | translate }}</p>
+  }
+
+  <ion-item class="search-item">
+    <ion-input
+      [placeholder]="'item.winesPickerSearch' | translate"
+      [value]="query()"
+      (ionInput)="onQueryInput($event)"
+      (keydown.enter)="addFromQuery($event)"
+      clearInput
+    />
+  </ion-item>
+
+  @if (canCreateNew()) {
+    <ion-button
+      expand="block"
+      fill="outline"
+      size="small"
+      class="create-wine-btn"
+      (click)="addFromQuery()"
+      [disabled]="creating()"
+    >
+      @if (creating()) {
+        <ion-spinner name="crescent" />
+      } @else {
+        <ion-icon slot="start" name="add-outline" />
+        {{ 'item.winesAddNew' | translate: { name: query().trim() } }}
+      }
+    </ion-button>
+  } @else if (exactMatch(); as match) {
+    <ion-button
+      expand="block"
+      fill="outline"
+      size="small"
+      class="create-wine-btn"
+      (click)="toggleWine(match)"
+      [disabled]="isSelected(match.id)"
+    >
+      <ion-icon slot="start" name="add-outline" />
+      {{ 'item.winesUseExisting' | translate: { name: match.name } }}
+    </ion-button>
+  }
+
+  <p class="suggestions-label">{{ libraryLabelKey() | translate }}</p>
+
+  @if (loading()) {
+    <div class="loading-row"><ion-spinner name="crescent" /></div>
+  } @else if (filteredSuggestions().length) {
+    <div class="suggestions">
+      @for (wine of filteredSuggestions(); track wine.id) {
+        <ion-chip
+          class="wine-pill suggestion"
+          [outline]="true"
+          (click)="toggleWine(wine)"
+        >
+          <ion-label>{{ wine.name }}</ion-label>
+          @if (wine.wine?.winery) {
+            <span class="meta-badge">{{ wine.wine?.winery }}</span>
+          }
+        </ion-chip>
+      }
+    </div>
+  } @else {
+    <p class="empty-hint">{{ 'item.winesPickerNoMatches' | translate }}</p>
+  }
+</div>

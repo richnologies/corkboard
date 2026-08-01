@@ -1,7 +1,7 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/tabs/places" />
+      <ion-back-button [defaultHref]="defaultHref()" />
     </ion-buttons>
     <ion-title>{{ (id === 'new' || !id ? 'item.addTitle' : 'item.editTitle') | translate }}</ion-title>
   </ion-toolbar>
@@ -19,7 +19,7 @@
 
         <ion-item>
           <ion-select [label]="'item.category' | translate" labelPlacement="stacked" formControlName="category">
-            @for (c of categories; track c) {
+            @for (c of formCategories(); track c) {
               <ion-select-option [value]="c">{{ 'category.' + c | translate }}</ion-select-option>
             }
           </ion-select>
@@ -115,6 +115,218 @@
           <ion-input [label]="'item.country' | translate" labelPlacement="stacked" formControlName="country" />
         </ion-item>
       </ion-list>
+      }
+
+      @if (isWineForm()) {
+        <p class="section-label">{{ 'item.wineSection' | translate }}</p>
+
+        <ion-segment [value]="wineLinkMode()" (ionChange)="onWineLinkModeChange($event)" class="location-segment">
+          <ion-segment-button value="search">
+            <ion-label>{{ 'item.wineModeSearch' | translate }}</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="link">
+            <ion-label>{{ 'item.wineModeLink' | translate }}</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="photo">
+            <ion-label>{{ 'item.wineModePhoto' | translate }}</ion-label>
+          </ion-segment-button>
+        </ion-segment>
+
+        @if (wineLinkMode() === 'search') {
+          <ion-searchbar
+            class="wine-search"
+            [placeholder]="'item.wineSearchPlaceholder' | translate"
+            [value]="wineSearchQuery()"
+            debounce="0"
+            (ionInput)="onWineSearch($event)"
+          />
+          @if (searchingWines()) {
+            <div class="wine-search-status"><ion-spinner name="crescent" /></div>
+          }
+          @if (wineSearchResults().length) {
+            <ion-list lines="none" class="wine-results">
+              @for (result of wineSearchResults(); track result.wineId + (result.vintageId ?? '') + (result.itemId ?? '')) {
+                <ion-item button detail="false" (click)="pickWineSearchResult(result)">
+                  @if (result.imageUrl) {
+                    <img
+                      class="wine-result-thumb"
+                      slot="start"
+                      [src]="result.imageUrl"
+                      alt=""
+                    />
+                  }
+                  <ion-label>
+                    <h3>{{ result.displayName }}</h3>
+                    <p>
+                      @if (result.source === 'local') {
+                        {{ 'item.wineSourceLocal' | translate }}
+                      } @else if (result.source === 'cache') {
+                        {{ 'item.wineSourceCache' | translate }}
+                      } @else {
+                        {{ 'item.wineSourceVivino' | translate }}
+                      }
+                      @if (result.region) { · {{ result.region }} }
+                      @if (result.rating != null) {
+                        · {{ result.rating | number: '1.1-1' }}/5
+                      }
+                    </p>
+                  </ion-label>
+                </ion-item>
+              }
+            </ion-list>
+          }
+        } @else if (wineLinkMode() === 'link') {
+          <ion-item class="link-input">
+            <ion-input
+              [label]="'item.pasteVivinoLink' | translate"
+              labelPlacement="stacked"
+              [value]="vivinoLink()"
+              (ionInput)="vivinoLink.set($any($event.target).value)"
+              placeholder="https://www.vivino.com/..."
+            />
+          </ion-item>
+          <ion-button
+            expand="block"
+            fill="outline"
+            (click)="resolveVivinoLink()"
+            [disabled]="resolvingLink() || !vivinoLink().trim()"
+          >
+            @if (resolvingLink()) {
+              <ion-spinner name="crescent" />
+            } @else {
+              {{ 'item.resolveLink' | translate }}
+            }
+          </ion-button>
+        } @else {
+          <input
+            #winePhotoInput
+            type="file"
+            [accept]="imageAccept"
+            capture="environment"
+            hidden
+            (change)="onWinePhotoSelected($event)"
+          />
+          <ion-button
+            expand="block"
+            fill="outline"
+            type="button"
+            (click)="winePhotoInput.click()"
+            [disabled]="identifyingWine()"
+          >
+            @if (identifyingWine()) {
+              <ion-spinner name="crescent" />
+            } @else {
+              {{ 'item.winePhotoButton' | translate }}
+            }
+          </ion-button>
+          @if (winePhotoPreview(); as preview) {
+            <div class="wine-photo-preview">
+              <img [src]="preview" [alt]="'item.winePhotoPreview' | translate" />
+              <ion-button fill="clear" size="small" color="medium" (click)="clearWinePhoto()">
+                {{ 'common.cancel' | translate }}
+              </ion-button>
+            </div>
+          }
+          @if (identifyingWine()) {
+            <p class="location-hint">{{ 'item.wineIdentifying' | translate }}</p>
+          }
+          @if (wineIdentifyError(); as err) {
+            <ion-note color="danger" class="link-error">{{ err }}</ion-note>
+          }
+          @if (wineSearchResults().length) {
+            <ion-list lines="none" class="wine-results">
+              @for (result of wineSearchResults(); track result.wineId + (result.vintageId ?? '') + (result.itemId ?? '')) {
+                <ion-item button detail="false" (click)="pickWineSearchResult(result)">
+                  @if (result.imageUrl) {
+                    <img
+                      class="wine-result-thumb"
+                      slot="start"
+                      [src]="result.imageUrl"
+                      alt=""
+                    />
+                  }
+                  <ion-label>
+                    <h3>{{ result.displayName }}</h3>
+                    <p>
+                      @if (result.source === 'local') {
+                        {{ 'item.wineSourceLocal' | translate }}
+                      } @else if (result.source === 'cache') {
+                        {{ 'item.wineSourceCache' | translate }}
+                      } @else {
+                        {{ 'item.wineSourceVivino' | translate }}
+                      }
+                      @if (result.region) { · {{ result.region }} }
+                      @if (result.rating != null) {
+                        · {{ result.rating | number: '1.1-1' }}/5
+                      }
+                    </p>
+                  </ion-label>
+                </ion-item>
+              }
+            </ion-list>
+          }
+        }
+
+        @if (linkError() && isWineForm()) {
+          <ion-note color="danger" class="link-error">{{ 'item.wineLinkResolveError' | translate }}</ion-note>
+        }
+
+        @if (selectedWineMeta()?.imageUrl || selectedWineMeta()?.vivinoUrl) {
+          <div class="selected-wine-preview">
+            @if (selectedWineMeta()?.imageUrl; as imageUrl) {
+              <img class="selected-wine-thumb" [src]="imageUrl" alt="" />
+            }
+            @if (selectedWineMeta()?.vivinoUrl) {
+              <div class="selected-place-row">
+                <ion-chip color="primary" class="selected-place">
+                  {{ 'item.linkedToVivino' | translate }}
+                </ion-chip>
+                <ion-button fill="clear" size="small" color="medium" (click)="clearWineLink()">
+                  {{ 'item.clearWineLink' | translate }}
+                </ion-button>
+              </div>
+            }
+          </div>
+        }
+
+        <ion-list lines="none">
+          <ion-item>
+            <ion-input [label]="'item.winery' | translate" labelPlacement="stacked" formControlName="winery" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.grapes' | translate" labelPlacement="stacked" formControlName="grapes" [placeholder]="'item.grapesPlaceholder' | translate" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.wineRegion' | translate" labelPlacement="stacked" formControlName="wineRegion" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.wineCountry' | translate" labelPlacement="stacked" formControlName="wineCountry" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.wineStyle' | translate" labelPlacement="stacked" formControlName="style" />
+          </ion-item>
+          <ion-item>
+            <ion-input type="number" inputmode="decimal" [label]="'item.alcoholPercentage' | translate" labelPlacement="stacked" formControlName="alcoholPercentage" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.allergens' | translate" labelPlacement="stacked" formControlName="allergens" [placeholder]="'item.allergensPlaceholder' | translate" />
+          </ion-item>
+          <ion-item>
+            <ion-textarea [label]="'item.wineDescription' | translate" labelPlacement="stacked" formControlName="description" [autoGrow]="true" />
+          </ion-item>
+          <ion-item>
+            <ion-input type="number" inputmode="decimal" [label]="'item.winePrice' | translate" labelPlacement="stacked" formControlName="price" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.winePriceCurrency' | translate" labelPlacement="stacked" formControlName="priceCurrency" />
+          </ion-item>
+          <ion-item>
+            <ion-input type="number" inputmode="decimal" [label]="'item.wineRating' | translate" labelPlacement="stacked" formControlName="rating" [placeholder]="'item.wineRatingPlaceholder' | translate" />
+          </ion-item>
+          <ion-item>
+            <ion-input [label]="'item.wineYear' | translate" labelPlacement="stacked" formControlName="year" />
+          </ion-item>
+        </ion-list>
       }
 
       <ion-list lines="none">

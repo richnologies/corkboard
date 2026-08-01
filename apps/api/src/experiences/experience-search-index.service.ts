@@ -62,6 +62,14 @@ export class ExperienceSearchIndexService implements OnModuleInit {
       : [];
     const companionNames = people.map((person) => person.name);
 
+    const wineIds = (experience.wineItemIds ?? []).map((id) => String(id));
+    const wineSummaries = wineIds.length
+      ? await this.itemsService.findSummariesByIds(wineIds)
+      : new Map();
+    const wineNames = wineIds
+      .map((id) => wineSummaries.get(id)?.name)
+      .filter((name): name is string => !!name);
+
     const photos = [...(experience.photos ?? [])];
     for (const photo of photos) {
       if (photo.notes?.trim() || photo.aiDescription?.trim()) continue;
@@ -78,6 +86,7 @@ export class ExperienceSearchIndexService implements OnModuleInit {
 
     const searchText = this.buildSearchText({
       itemName: item.name,
+      wineNames,
       location: formatLocationSummary(item.location),
       visitedAt: experience.visitedAt,
       notes: experience.notes,
@@ -107,6 +116,7 @@ export class ExperienceSearchIndexService implements OnModuleInit {
 
   private buildSearchText(input: {
     itemName: string;
+    wineNames?: string[];
     location?: string;
     visitedAt: Date;
     notes?: string;
@@ -117,6 +127,9 @@ export class ExperienceSearchIndexService implements OnModuleInit {
   }): string {
     const lines = [
       `Place: ${input.itemName}`,
+      ...(input.wineNames?.length
+        ? [`Wines: ${input.wineNames.join(', ')}`]
+        : []),
       ...(input.location ? [`Location: ${input.location}`] : []),
       `Visited: ${input.visitedAt.toISOString().slice(0, 10)}`,
     ];

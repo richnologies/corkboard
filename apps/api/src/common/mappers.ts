@@ -5,18 +5,59 @@ import {
   ItemShare,
   LatestVisitSummary,
   StructuredRating,
+  WineDetails,
 } from '@org/domain';
 import { ItemDocument } from '../items/item.schema.js';
 import { ItemShareDocument } from '../sharing/share.schema.js';
+
+export function mapWineDetails(
+  wine?: ItemDocument['wine'],
+): WineDetails | undefined {
+  if (!wine) return undefined;
+  return {
+    vivinoWineId: wine.vivinoWineId,
+    vivinoVintageId: wine.vivinoVintageId,
+    vivinoUrl: wine.vivinoUrl,
+    winery: wine.winery,
+    grapes: wine.grapes?.length ? [...wine.grapes] : undefined,
+    grapesEn: wine.grapesEn?.length ? [...wine.grapesEn] : undefined,
+    grapesEs: wine.grapesEs?.length ? [...wine.grapesEs] : undefined,
+    region: wine.region,
+    regionEn: wine.regionEn,
+    regionEs: wine.regionEs,
+    country: wine.country,
+    countryEn: wine.countryEn,
+    countryEs: wine.countryEs,
+    style: wine.style,
+    styleEn: wine.styleEn,
+    styleEs: wine.styleEs,
+    alcoholPercentage: wine.alcoholPercentage,
+    allergens: wine.allergens?.length ? [...wine.allergens] : undefined,
+    allergensEn: wine.allergensEn?.length ? [...wine.allergensEn] : undefined,
+    allergensEs: wine.allergensEs?.length ? [...wine.allergensEs] : undefined,
+    description: wine.description,
+    descriptionEn: wine.descriptionEn,
+    descriptionEs: wine.descriptionEs,
+    price: wine.price,
+    priceCurrency: wine.priceCurrency,
+    rating: wine.rating,
+    year: wine.year,
+    imageUrl: wine.imageUrl,
+    imageKey: wine.imageKey,
+  };
+}
 
 export function mapItem(doc: ItemDocument): Item {
   return {
     id: doc.id,
     ownerId: String(doc.ownerId),
     name: doc.name,
+    nameEn: doc.nameEn,
+    nameEs: doc.nameEs,
     category: doc.category,
     status: doc.status,
     location: doc.location ?? undefined,
+    wine: mapWineDetails(doc.wine),
     links: doc.links ?? [],
     photoKeys: doc.photoKeys ?? [],
     tags: doc.tags ?? [],

@@ -62,6 +62,11 @@ export class CreateExperienceDto {
 
   @IsOptional()
   @IsArray()
+  @IsString({ each: true })
+  wineItemIds?: string[];
+
+  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ExperiencePhotoDto)
   photos?: ExperiencePhotoDto[];
@@ -103,6 +108,11 @@ export class UpdateExperienceDto {
   @IsArray()
   @IsString({ each: true })
   companionPersonIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  wineItemIds?: string[];
 
   @IsOptional()
   @IsArray()

@@ -14,6 +14,7 @@ import { TagsModule } from '../tags/tags.module.js';
 import { RecommendationsModule } from '../recommendations/recommendations.module.js';
 import { PeopleModule } from '../people/people.module.js';
 import { PlacesModule } from '../places/places.module.js';
+import { WinesModule } from '../wines/wines.module.js';
 import { ConversationsModule } from '../conversations/conversations.module.js';
 import { AssistantModule } from '../assistant/assistant.module.js';
 
@@ -33,6 +34,7 @@ import { AssistantModule } from '../assistant/assistant.module.js';
     PeopleModule,
     RecommendationsModule,
     PlacesModule,
+    WinesModule,
     ConversationsModule,
     AssistantModule,
   ],

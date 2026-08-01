@@ -71,6 +71,10 @@ export class Experience {
   @Prop({ type: [Types.ObjectId], default: [], ref: 'Person' })
   companionPersonIds!: Types.ObjectId[];
 
+  /** Wine items tasted / linked during this visit */
+  @Prop({ type: [Types.ObjectId], default: [], ref: 'Item', index: true })
+  wineItemIds!: Types.ObjectId[];
+
   @Prop({ type: [ExperiencePhotoEmbed], default: [] })
   photos!: ExperiencePhotoEmbed[];
 
@@ -89,6 +93,7 @@ export class Experience {
 
 export const ExperienceSchema = SchemaFactory.createForClass(Experience);
 ExperienceSchema.index({ itemId: 1, visitedAt: -1 });
+ExperienceSchema.index({ wineItemIds: 1, visitedAt: -1 });
 ExperienceSchema.index({ authorId: 1, visitedAt: -1 });
 ExperienceSchema.index({ participantUserIds: 1 });
 ExperienceSchema.index({ searchText: 'text' });

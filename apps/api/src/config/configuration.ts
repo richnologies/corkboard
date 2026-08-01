@@ -24,7 +24,8 @@ export default registerAs('app', () => ({
   },
   openai: {
     apiKey: process.env['OPENAI_API_KEY'],
-    model: process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+    model: process.env['OPENAI_MODEL'] ?? 'gpt-5.6-luna',
+    enrichModel: process.env['OPENAI_ENRICH_MODEL'] ?? 'gpt-5.6-luna',
     embeddingModel:
       process.env['OPENAI_EMBEDDING_MODEL'] ?? 'text-embedding-3-small',
   },

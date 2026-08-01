@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ExperienceVisibility } from '@org/domain';
+import { ExperienceVisibility, ItemCategory } from '@org/domain';
 import { Experience, ExperienceDocument } from './experience.schema.js';
 import {
   CreateExperienceDto,
@@ -27,7 +27,7 @@ import {
   canEditExperience,
   canViewExperience,
   experienceAuthorId,
-  itemIdQuery,
+  experiencesForItemQuery,
   resolveItemAccess,
   toObjectId,
   toObjectIdArray,
@@ -83,6 +83,11 @@ export class ExperiencesService implements OnModuleInit {
       userId,
       dto.participantUserIds,
     );
+    const wineItemIds = await this.resolveWineItemIds(
+      userId,
+      itemId,
+      dto.wineItemIds,
+    );
 
     const experience = await this.experienceModel.create({
       itemId: toObjectId(itemId),
@@ -94,10 +99,16 @@ export class ExperiencesService implements OnModuleInit {
       notes: dto.notes,
       wouldReturn: dto.wouldReturn,
       companionPersonIds: toObjectIdArray(companions.companionPersonIds),
+      wineItemIds: toObjectIdArray(wineItemIds),
       photos: dto.photos ?? [],
     });
 
     await this.itemsService.markVisitedAfterExperience(userId, itemId);
+    await Promise.all(
+      wineItemIds.map((wineId) =>
+        this.itemsService.markVisitedAfterExperience(userId, wineId),
+      ),
+    );
     this.searchIndex.scheduleIndex(experience.id);
     return this.enrichOne(userId, experience, access);
   }
@@ -132,13 +143,38 @@ export class ExperiencesService implements OnModuleInit {
     );
 
     const experiences = await this.experienceModel
-      .find(itemIdQuery(itemId))
+      .find(experiencesForItemQuery(itemId))
       .sort({ visitedAt: -1 })
       .exec();
 
-    const visible = experiences.filter((experience) =>
-      canViewExperience(experience, userId, access),
-    );
+    const visible: ExperienceDocument[] = [];
+    for (const experience of experiences) {
+      const primaryId = String(experience.itemId);
+      if (primaryId === itemId) {
+        if (canViewExperience(experience, userId, access)) {
+          visible.push(experience);
+        }
+        continue;
+      }
+
+      // Linked via wineItemIds — access is based on the primary (place) item.
+      try {
+        const primaryItem = await this.itemsService.getAccessibleItem(
+          userId,
+          primaryId,
+        );
+        const primaryAccess = await resolveItemAccess(
+          userId,
+          primaryItem,
+          (id, uid) => this.sharingService.findShare(id, uid),
+        );
+        if (canViewExperience(experience, userId, primaryAccess)) {
+          visible.push(experience);
+        }
+      } catch {
+        // Primary place not accessible — skip linked visit.
+      }
+    }
 
     return this.enrichMany(userId, visible, access);
   }
@@ -229,6 +265,7 @@ export class ExperiencesService implements OnModuleInit {
             companions: experience.companions,
             authorDisplayName: experience.authorDisplayName,
             photoCount: experience.photos?.length ?? 0,
+            wines: experience.wines,
           });
         }
       } catch {
@@ -248,9 +285,15 @@ export class ExperiencesService implements OnModuleInit {
   ): Promise<Map<string, LatestExperienceByItem>> {
     if (!itemIds.length) return new Map();
 
+    const objectIds = itemIds.map((id) => toObjectId(id));
+    const itemIdSet = new Set(itemIds);
+
     const experiences = await this.experienceModel
       .find({
-        $or: itemIds.flatMap((itemId) => itemIdQuery(itemId).$or),
+        $or: [
+          { itemId: { $in: objectIds } },
+          { wineItemIds: { $in: objectIds } },
+        ],
       })
       .sort({ visitedAt: -1 })
       .exec();
@@ -273,18 +316,64 @@ export class ExperiencesService implements OnModuleInit {
       }
     }
 
+    const primaryAccessCache = new Map<
+      string,
+      Awaited<ReturnType<typeof resolveItemAccess>> | null
+    >();
+
     const map = new Map<string, LatestExperienceByItem>();
     for (const experience of experiences) {
-      const itemId = String(experience.itemId);
-      if (map.has(itemId)) continue;
-      const access = accessByItem.get(itemId);
-      if (!access || !canViewExperience(experience, userId, access)) continue;
-      map.set(itemId, {
-        itemId,
-        visitedAt: experience.visitedAt,
-        rating: experience.rating,
-        notes: experience.notes,
-      });
+      const primaryId = String(experience.itemId);
+      const relatedIds = [
+        primaryId,
+        ...(experience.wineItemIds ?? []).map((id) => String(id)),
+      ].filter((id) => itemIdSet.has(id) && !map.has(id));
+
+      if (!relatedIds.length) continue;
+
+      let primaryAccess = accessByItem.get(primaryId) ?? null;
+      if (!primaryAccess && !primaryAccessCache.has(primaryId)) {
+        try {
+          const primaryItem = await this.itemsService.getAccessibleItem(
+            userId,
+            primaryId,
+          );
+          primaryAccessCache.set(
+            primaryId,
+            await resolveItemAccess(userId, primaryItem, (id, uid) =>
+              this.sharingService.findShare(id, uid),
+            ),
+          );
+        } catch {
+          primaryAccessCache.set(primaryId, null);
+        }
+      }
+      if (!primaryAccess) {
+        primaryAccess = primaryAccessCache.get(primaryId) ?? null;
+      }
+
+      if (
+        !primaryAccess ||
+        !canViewExperience(experience, userId, primaryAccess)
+      ) {
+        continue;
+      }
+
+      for (const relatedId of relatedIds) {
+        if (map.has(relatedId)) continue;
+        if (relatedId === primaryId) {
+          const access = accessByItem.get(relatedId);
+          if (!access || !canViewExperience(experience, userId, access)) {
+            continue;
+          }
+        }
+        map.set(relatedId, {
+          itemId: relatedId,
+          visitedAt: experience.visitedAt,
+          rating: experience.rating,
+          notes: experience.notes,
+        });
+      }
     }
     return map;
   }
@@ -338,6 +427,19 @@ export class ExperiencesService implements OnModuleInit {
         companions.companionPersonIds,
       );
     }
+    if (dto.wineItemIds !== undefined) {
+      const wineItemIds = await this.resolveWineItemIds(
+        userId,
+        String(experience.itemId),
+        dto.wineItemIds,
+      );
+      experience.wineItemIds = toObjectIdArray(wineItemIds);
+      await Promise.all(
+        wineItemIds.map((wineId) =>
+          this.itemsService.markVisitedAfterExperience(userId, wineId),
+        ),
+      );
+    }
     if (dto.photos !== undefined) experience.photos = dto.photos;
 
     await experience.save();
@@ -346,6 +448,10 @@ export class ExperiencesService implements OnModuleInit {
   }
 
   async assertCanViewPhoto(userId: string, key: string): Promise<void> {
+    if (this.s3Service.isCatalogWineKey(key)) {
+      return;
+    }
+
     try {
       this.s3Service.assertUserKey(userId, key);
       return;
@@ -441,14 +547,90 @@ export class ExperiencesService implements OnModuleInit {
       );
     }
 
+    const relatedItemIds = [
+      ...new Set(
+        experiences.flatMap((experience) => [
+          String(experience.itemId),
+          ...(experience.wineItemIds ?? []).map((id) => String(id)),
+        ]),
+      ),
+    ];
+    const itemSummaries =
+      await this.itemsService.findSummariesByIds(relatedItemIds);
+
+    const primaryAccessById = new Map<
+      string,
+      Awaited<ReturnType<typeof resolveItemAccess>>
+    >();
+    const viewingItemId = String(access.item._id ?? access.item.id);
+    primaryAccessById.set(viewingItemId, access);
+
+    for (const experience of experiences) {
+      const primaryId = String(experience.itemId);
+      if (primaryAccessById.has(primaryId)) continue;
+      try {
+        const primaryItem = await this.itemsService.getAccessibleItem(
+          userId,
+          primaryId,
+        );
+        primaryAccessById.set(
+          primaryId,
+          await resolveItemAccess(userId, primaryItem, (id, uid) =>
+            this.sharingService.findShare(id, uid),
+          ),
+        );
+      } catch {
+        // Leave unset — canEdit will fall back to authorship.
+      }
+    }
+
     return experiences.map((experience) => {
       const authorId = experienceAuthorId(experience);
+      const primaryId = String(experience.itemId);
+      const wineIds = (experience.wineItemIds ?? []).map((id) => String(id));
+      const place = itemSummaries.get(primaryId);
+      const wines = wineIds
+        .map((id) => itemSummaries.get(id))
+        .filter((wine): wine is NonNullable<typeof wine> => !!wine);
+
+      const primaryAccess = primaryAccessById.get(primaryId) ?? access;
+      const canEdit = canEditExperience(experience, userId, primaryAccess);
+
       return enrichExperience(mapExperience(experience), {
         companions: companionNamesByExperience.get(experience.id),
         authorDisplayName: authorId ? authorNames.get(authorId) : undefined,
-        canEdit: canEditExperience(experience, userId, access),
+        canEdit,
+        place,
+        wines,
       });
     });
+  }
+
+  private async resolveWineItemIds(
+    userId: string,
+    primaryItemId: string,
+    wineItemIds?: string[],
+  ): Promise<string[]> {
+    const unique = [
+      ...new Set(
+        (wineItemIds ?? []).filter(
+          (id) => id && id !== primaryItemId && Types.ObjectId.isValid(id),
+        ),
+      ),
+    ];
+    if (!unique.length) return [];
+
+    const wines: string[] = [];
+    for (const wineId of unique) {
+      const item = await this.itemsService.getAccessibleItem(userId, wineId);
+      if (item.category !== ItemCategory.Wine) {
+        throw new BadRequestException(
+          `Item ${wineId} is not a wine and cannot be linked to a visit`,
+        );
+      }
+      wines.push(wineId);
+    }
+    return wines;
   }
 
   private async resolveParticipantUserIds(
@@ -567,6 +749,10 @@ export class ExperiencesService implements OnModuleInit {
     await this.experienceModel.updateMany(
       { companionPersonIds: { $exists: false } },
       { $set: { companionPersonIds: [] } },
+    );
+    await this.experienceModel.updateMany(
+      { wineItemIds: { $exists: false } },
+      { $set: { wineItemIds: [] } },
     );
 
     const legacyCompanionRows = await this.experienceModel

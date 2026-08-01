@@ -33,6 +33,17 @@ h3 {
   font-style: italic;
 }
 
+.wine-hero {
+  display: block;
+  width: 120px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--cork-border);
+  background: var(--cork-surface);
+}
+
 .tags {
   margin: 16px 0;
   display: flex;
@@ -201,6 +212,63 @@ app-osm-map {
     color: var(--ion-color-tertiary);
     font-size: 16px;
   }
+}
+
+.linked-place {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  margin: 0 0 8px;
+  color: var(--cork-muted);
+
+  ion-icon {
+    color: var(--ion-color-tertiary);
+    font-size: 16px;
+  }
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--ion-color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.linked-wines {
+  margin: 0 0 10px;
+
+  .linked-wines-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cork-muted);
+
+    ion-icon {
+      font-size: 16px;
+      color: var(--ion-color-tertiary);
+    }
+  }
+
+  .wine-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+.form-hint {
+  margin: 0 16px 12px;
+  font-size: 13px;
+  color: var(--cork-muted);
 }
 
 .photo-grid {
