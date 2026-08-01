@@ -331,15 +331,33 @@ export const ASSISTANT_TOOLS = [
   {
     type: 'function' as const,
     function: {
+      name: 'identify_wine_from_photo',
+      description:
+        'Read a bottle/label photo the user attached and search for matching wines. REQUIRED whenever the user sends a wine bottle photo or asks to find/identify "this wine" / "ese vino" from an image. Do NOT use search_wines with vague phrases like "ese vino", "this wine", or "vino" when a photo is available.',
+      parameters: {
+        type: 'object',
+        properties: {
+          photoKey: {
+            type: 'string',
+            description:
+              'S3 photo key from the attached photos list. Omit to use the latest attached photo.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'search_wines',
       description:
-        'Search the user\'s wine library and Vivino catalog. Use for wine questions (origin, rating, style), finding a bottle by name, or before adding/linking a wine. Prefer local matches when present.',
+        'Search the user\'s wine library and Vivino catalog by text name. Use when the user types a wine/winery name. Do NOT use this for bottle photos — use identify_wine_from_photo instead.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Wine name, winery, grape, or region, e.g. "Opus One 2018" or "Rioja"',
+            description: 'Wine name, winery, grape, or region, e.g. "Opus One 2018" or "Laxas Albariño"',
           },
         },
         required: ['query'],
@@ -376,13 +394,19 @@ export const ASSISTANT_TOOLS = [
     function: {
       name: 'list_saved_wines',
       description:
-        'List wines already saved in the user\'s Malviviendo library. Optional name/keyword filter.',
+        'Search wines already saved in the user\'s Malviviendo library, including provenance (who gifted/recommended them and source notes). Use for "what wine did X give me?", "wines from Pere", gifts, recommendations, or listing the cellar. Prefer this over search_visits when the question is about who gave/recommended a bottle rather than who was at a meal.',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Optional filter by wine name, winery, or region',
+            description:
+              'Filter by wine name, winery, region, or text in provenance notes (e.g. "regalo", "Pere")',
+          },
+          referrerName: {
+            type: 'string',
+            description:
+              'Person who gifted or recommended the wine (matches source.referrerName and also scans provenance notes)',
           },
         },
       },

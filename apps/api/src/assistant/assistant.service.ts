@@ -158,10 +158,13 @@ export class AssistantService {
       { weekday: 'long', timeZone: 'UTC' },
     );
     const photos = await this.resolveVisitPhotos(userId, dto);
+    const latestPhotoKey = photos[photos.length - 1]?.key;
     const photoNote =
       photos.length > 0
-        ? `The user has ${photos.length} photo(s) ready to attach to a visit (including any shared earlier in this chat). Always save them with the visit when you log it.`
-        : 'The user has not attached photos for this visit yet.';
+        ? `The user has ${photos.length} photo(s) in this chat. Keys: ${photos
+            .map((photo) => photo.key)
+            .join(', ')}. Latest photoKey: ${latestPhotoKey}. If they ask to find/identify a wine from a bottle photo (e.g. "busca ese vino", "what wine is this"), you MUST call identify_wine_from_photo — never search_wines with vague text. Photos can also be attached when logging a visit.`
+        : 'The user has not attached photos yet.';
 
     const replyLanguage =
       locale === 'es' ? 'Spanish' : 'English';
@@ -177,16 +180,18 @@ export class AssistantService {
           `Today is ${weekdayLabel}, ${today} (YYYY-MM-DD) in the user's local timezone (${timeZone}). Interpret relative dates like "today", "yesterday", or "last Tuesday" accordingly. You may pass either an ISO date or the relative phrase as visitedAt — the server resolves phrases.`,
           'For questions about what/where the user ate on a specific day ("last Wednesday", "ayer", "el miércoles pasado"), use find_visits_by_date with relativeDate or an ISO fromDate. Never use get_last_visit unless asking about one named place.',
           'get_last_visit only answers when the user last went to a specific saved place by name — not for date-based recall.',
-          'WINE: For questions about a bottle (origin, region, winery, grapes, whether it is good), use search_wines then get_wine_details. Vivino ratings are 1–5 (not the 0–10 visit scores). Be honest about ratings — cite the score when available. Prefer *Es fields when replying in Spanish and *En fields when replying in English (description, region, country, style, grapes, allergens). When sharing a Vivino URL, write it as a plain https URL or markdown [name](url) — the app renders links.',
+          'WINE PHOTO: When a bottle/label photo is attached and the user wants to find or identify it, call identify_wine_from_photo first. Never call search_wines with placeholders like "ese vino", "this wine", "vino", or the user\'s instruction text.',
+          'WINE: For questions about a named bottle (origin, region, winery, grapes, whether it is good), use search_wines then get_wine_details. Vivino ratings are 1–5 (not the 0–10 visit scores). Be honest about ratings — cite the score when available. Prefer *Es fields when replying in Spanish and *En fields when replying in English (description, region, country, style, grapes, allergens). When sharing a Vivino URL, write it as a plain https URL or markdown [name](url) — the app renders links.',
           'WINE MEMORY: For "what wine did we have last Wednesday / at X restaurant", use find_visits_by_date or search_visits / get_last_visit and read the wines field on visits. Prefer those over inventing bottles.',
+          'WINE PROVENANCE: For questions about who gifted, gave, recommended, or suggested a wine ("el vino que me regaló Pere", "wines from Ana"), use list_saved_wines with referrerName and/or query set to that person. Provenance lives on the wine item (source.referrerName + source.notes), NOT on visit companions. Do not answer from visit companions alone for gift/recommendation questions.',
           'WINE SAVE: Never call ensure_wine until the user clearly asks to save/add the wine (or confirms after you offer). For statements like "I like X" or questions about a bottle: search_wines + get_wine_details, tell them about it, and ask whether they want it saved — use <<<replies: ...>>> for yes/no when helpful. If multiple matches, present options first; only ensure_wine after they pick AND confirm saving (or after an explicit save request).',
           'WINE LINK: To attach bottles to a past visit, resolve the visit then link_wines_to_visit (after ensure_wine if needed — ask before creating new wines). When logging a new visit, pass wineNames/wineItemIds on log_visit or create_place_and_log_visit.',
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
           'Use tools to look up real data before answering — never invent visits, places, or wines.',
           'For questions about where the user has been (city, country, neighborhood), use list_visited_places with a city or country filter. Never infer location from the place name alone. Prefer nameEs/locationEs when replying in Spanish and nameEn/locationEn when replying in English.',
           'If list_visited_places returns places without a saved city, say so and suggest adding location in the place details.',
-          'Prefer search_visits for questions about companions, visit notes, food/atmosphere memories, linked wines, or fuzzy visit recall.',
-          'Use search_places or get_last_visit when the user names a specific saved place. Use search_wines for bottles.',
+          'Prefer search_visits for questions about meal companions, visit notes, food/atmosphere memories, linked wines drunk at a place, or fuzzy visit recall. For gifted/recommended bottles, use list_saved_wines instead.',
+          'Use search_places or get_last_visit when the user names a specific saved place. Use search_wines for typed bottle names; use identify_wine_from_photo for bottle photos.',
           'When a place is not saved yet: search_places first, then search_google_places if needed.',
           'If search_google_places returns exactly one match, call ensure_place_from_google with that googlePlaceId and continue — never ask the user to confirm a single match.',
           'If search_google_places returns multiple matches, present numbered options and wait for the user to pick one.',
@@ -428,6 +433,14 @@ export class AssistantService {
         return this.toolSearchVisits(userId, args, relatedItems);
       case 'search_people':
         return this.toolSearchPeople(userId, String(args['query'] ?? ''));
+      case 'identify_wine_from_photo':
+        return this.toolIdentifyWineFromPhoto(
+          userId,
+          args,
+          photos,
+          relatedItems,
+          onWineCandidates,
+        );
       case 'search_wines':
         return this.toolSearchWines(
           userId,
@@ -2292,6 +2305,85 @@ export class AssistantService {
     );
   }
 
+  private async toolIdentifyWineFromPhoto(
+    userId: string,
+    args: Record<string, unknown>,
+    photos: VisitPhotoAttachment[],
+    relatedItems: Map<string, string>,
+    onWineCandidates: (candidates: WineCandidate[]) => void,
+  ) {
+    const requestedKey = args['photoKey']
+      ? String(args['photoKey']).trim()
+      : '';
+    const photoKey =
+      requestedKey || photos[photos.length - 1]?.key || undefined;
+
+    if (!photoKey) {
+      return {
+        error:
+          'No photo attached. Ask the user to send a clear photo of the bottle label.',
+      };
+    }
+
+    if (
+      requestedKey &&
+      photos.length > 0 &&
+      !photos.some((photo) => photo.key === requestedKey)
+    ) {
+      return {
+        error: `photoKey "${requestedKey}" is not among the attached photos. Use one of: ${photos
+          .map((photo) => photo.key)
+          .join(', ')}`,
+      };
+    }
+
+    try {
+      const identified = await this.winesService.identifyFromPhoto(
+        userId,
+        photoKey,
+      );
+      const candidates = identified.results.map((result, index) =>
+        this.toWineCandidate(result, index + 1),
+      );
+
+      for (const result of identified.results) {
+        if (result.itemId) relatedItems.set(result.itemId, result.name);
+      }
+
+      if (candidates.length > 1) {
+        onWineCandidates(candidates);
+      }
+
+      if (candidates.length === 1) {
+        const candidate = candidates[0];
+        return {
+          extracted: identified.extracted,
+          count: 1,
+          autoSelected: true,
+          candidate,
+          message: candidate.itemId
+            ? 'Label read successfully; only one match, already in the library. Use this itemId with get_wine_details. Do NOT call ensure_wine again.'
+            : 'Label read successfully; only one Vivino match. For Q&A use get_wine_details. Do NOT call ensure_wine unless the user asked to save it.',
+        };
+      }
+
+      return {
+        extracted: identified.extracted,
+        count: candidates.length,
+        wines: candidates,
+        message: candidates.length
+          ? `Read label as "${identified.extracted.searchQuery}". Present these numbered options. Only ensure_wine after the user confirms saving.`
+          : `Read label as "${identified.extracted.searchQuery}" but found no catalog matches. Ask the user to confirm the name, then search_wines with that exact name.`,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Could not identify wine from photo';
+      return { error: message };
+    }
+  }
+
   private async toolSearchWines(
     userId: string,
     query: string,
@@ -2301,6 +2393,14 @@ export class AssistantService {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       return { error: 'query must be at least 2 characters' };
+    }
+
+    const vague = /^(ese|este|this|that|el|la|un|una)?\s*(vino|wine|bottle|botella)\s*$/i;
+    if (vague.test(trimmed) || /^(busca|find|search)\b/i.test(trimmed)) {
+      return {
+        error:
+          'That query is too vague for text search. If the user attached a bottle photo, call identify_wine_from_photo instead. Otherwise ask for the wine or winery name.',
+      };
     }
 
     const results = await this.winesService.search(userId, trimmed, 8);
@@ -2409,19 +2509,45 @@ export class AssistantService {
     relatedItems: Map<string, string>,
   ) {
     const query = args['query'] ? String(args['query']).trim() : undefined;
+    const referrerName = args['referrerName']
+      ? String(args['referrerName']).trim()
+      : undefined;
+
     const wines = await this.itemsService.findAll(userId, {
       category: ItemCategory.Wine,
       q: query,
+      referrerName,
     });
 
-    const limited = wines.slice(0, 20);
+    // Also catch gifts/recommendations only mentioned in provenance notes when
+    // the user asks about a person (referrerName field is exact-ish; notes need q).
+    let matched = wines;
+    if (referrerName && !query) {
+      const fromNotes = await this.itemsService.findAll(userId, {
+        category: ItemCategory.Wine,
+        q: referrerName,
+      });
+      const seen = new Set(matched.map((wine) => wine.id));
+      for (const wine of fromNotes) {
+        if (seen.has(wine.id)) continue;
+        seen.add(wine.id);
+        matched = [...matched, wine];
+      }
+    }
+
+    const limited = matched.slice(0, 20);
     for (const wine of limited) {
       relatedItems.set(wine.id, wine.name);
     }
 
     return {
-      count: wines.length,
+      count: matched.length,
       wines: limited.map((wine) => this.wineSummary(wine)),
+      message: limited.length
+        ? 'These are wines from the user library. Use provenance.referrerName / provenance.notes for gifts and recommendations — do not invent visit links.'
+        : referrerName || query
+          ? 'No saved wines matched that provenance/person/keyword. Try list_saved_wines without filters, or ask the user for the bottle name.'
+          : 'Library is empty.',
     };
   }
 
@@ -2726,6 +2852,15 @@ export class AssistantService {
       vivinoWineId: wine.wine?.vivinoWineId,
       vivinoVintageId: wine.wine?.vivinoVintageId,
       vivinoUrl: wine.wine?.vivinoUrl,
+      provenance: wine.source
+        ? {
+            type: wine.source.type,
+            referrerName: wine.source.referrerName ?? null,
+            referrerPersonId: wine.source.referrerPersonId ?? null,
+            notes: wine.source.notes ?? null,
+            url: wine.source.url ?? null,
+          }
+        : null,
     };
   }
 

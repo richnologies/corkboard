@@ -70,8 +70,9 @@ export class OpenAiService {
       },
       body: JSON.stringify({
         model: this.chatModel,
-        max_tokens: 160,
+        max_completion_tokens: 160,
         temperature: 0.2,
+        reasoning_effort: 'none',
         messages: [
           {
             role: 'user',
@@ -127,8 +128,9 @@ export class OpenAiService {
       },
       body: JSON.stringify({
         model: this.chatModel,
-        max_tokens: 300,
+        max_completion_tokens: 300,
         temperature: 0,
+        reasoning_effort: 'none',
         response_format: { type: 'json_object' },
         messages: [
           {
@@ -233,7 +235,8 @@ export class OpenAiService {
       body: JSON.stringify({
         model: this.chatModel,
         temperature: 0.3,
-        max_tokens: 24,
+        max_completion_tokens: 24,
+        reasoning_effort: 'none',
         messages: [
           {
             role: 'system',
