@@ -17,6 +17,7 @@ import { PlacesModule } from '../places/places.module.js';
 import { WinesModule } from '../wines/wines.module.js';
 import { ConversationsModule } from '../conversations/conversations.module.js';
 import { AssistantModule } from '../assistant/assistant.module.js';
+import { CatalogModule } from '../catalog/catalog.module.js';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AssistantModule } from '../assistant/assistant.module.js';
     DatabaseModule,
     UsersModule,
     AuthModule,
+    CatalogModule,
     ItemsModule,
     ExperiencesModule,
     SharingModule,

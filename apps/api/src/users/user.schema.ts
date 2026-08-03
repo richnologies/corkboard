@@ -13,6 +13,10 @@ export class User {
 
   @Prop({ required: true, trim: true })
   displayName!: string;
+
+  /** When set, the user finished or skipped first-run onboarding. */
+  @Prop()
+  onboardingCompletedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

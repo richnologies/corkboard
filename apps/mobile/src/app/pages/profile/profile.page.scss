@@ -1,6 +1,6 @@
 .profile-header {
   text-align: center;
-  padding: 40px 16px;
+  padding: 32px 16px 24px;
   background: linear-gradient(180deg, var(--cork-primary-soft) 0%, transparent 100%);
   border-radius: 20px;
   margin-bottom: 8px;
@@ -23,46 +23,97 @@
   }
 }
 
-.people-link {
-  --background: var(--cork-primary-soft);
-  border-color: var(--cork-primary-muted);
+.section-label {
+  margin: 8px 4px 10px;
+}
 
-  ion-icon[slot='start'] {
-    color: var(--ion-color-primary);
-    font-size: 22px;
-  }
+.account-label {
+  margin-top: 28px;
+}
 
-  h3 {
-    font-weight: 700;
+.people-hub-card {
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--cork-primary-muted);
+  background: var(--cork-primary-soft);
+  border-radius: var(--cork-radius-lg);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+
+  &:active {
+    opacity: 0.92;
   }
 }
 
-.password-section {
-  margin-top: 24px;
+.people-hub-icon {
+  width: 52px;
+  height: 52px;
+
+  ion-icon {
+    font-size: 24px;
+    color: var(--ion-color-primary);
+  }
+}
+
+.people-hub-copy {
+  flex: 1;
+  min-width: 0;
 
   h3 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 4px 12px;
-    font-size: 16px;
+    margin: 0;
+    font-size: 18px;
     font-weight: 700;
-
-    ion-icon {
-      color: var(--ion-color-primary);
-      font-size: 18px;
-    }
+    letter-spacing: -0.02em;
   }
 
-  ion-button {
-    margin-top: 12px;
+  p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--cork-muted);
+    line-height: 1.35;
+  }
+}
+
+.people-hub-count {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ion-color-primary);
+}
+
+.people-hub-chevron {
+  flex-shrink: 0;
+  color: var(--cork-muted);
+  font-size: 18px;
+}
+
+.people-hub-cta {
+  margin: 10px 0 0;
+  --border-radius: 14px;
+}
+
+.row-chevron {
+  color: var(--cork-muted);
+  font-size: 18px;
+}
+
+.password-modal {
+  .password-message {
+    margin: 8px 4px 0;
+    font-size: 14px;
+  }
+
+  .password-submit {
+    margin-top: 16px;
     --border-radius: 14px;
   }
-}
-
-.password-message {
-  margin: 8px 4px 0;
-  font-size: 14px;
 }
 
 .sign-out {

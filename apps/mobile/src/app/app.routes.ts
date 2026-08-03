@@ -15,6 +15,12 @@ export const routes: Routes = [
       import('./pages/auth/register.page').then((m) => m.RegisterPage),
   },
   {
+    path: 'onboarding',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/onboarding/onboarding.page').then((m) => m.OnboardingPage),
+  },
+  {
     path: 'tabs',
     canActivate: [authGuard],
     loadChildren: () => import('./tabs/tabs.routes').then((m) => m.routes),

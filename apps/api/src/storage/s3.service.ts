@@ -109,7 +109,35 @@ export class S3Service implements OnModuleInit {
     return `catalog/wines/${safeId}.${ext}`;
   }
 
-  /** Cached Google Places cover photo for a user-owned place item. */
+  /** Shared catalog cover photo for a Google/OSM place. */
+  catalogPlaceCoverKey(catalogPlaceId: string, extension = 'jpg'): string {
+    const safeId = catalogPlaceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const ext = extension.replace(/^\./, '').toLowerCase() || 'jpg';
+    return `catalog/places/${safeId}.${ext}`;
+  }
+
+  /** Small list thumbnail derived from the catalog cover. */
+  catalogPlaceCoverThumbKey(catalogPlaceId: string): string {
+    const safeId = catalogPlaceId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `catalog/places/thumbs/${safeId}.jpg`;
+  }
+
+  async getObjectBuffer(key: string): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+    );
+    const body = response.Body;
+    if (!body) {
+      throw new Error(`Empty S3 object: ${key}`);
+    }
+    const bytes = await body.transformToByteArray();
+    return Buffer.from(bytes);
+  }
+
+  /** @deprecated Prefer catalogPlaceCoverKey — kept for migration of legacy keys. */
   placeCoverKey(userId: string, extension = 'jpg'): string {
     const id = randomUUID();
     const ext = extension.replace(/^\./, '').toLowerCase() || 'jpg';
@@ -118,6 +146,10 @@ export class S3Service implements OnModuleInit {
 
   isCatalogWineKey(key: string): boolean {
     return key.startsWith('catalog/wines/');
+  }
+
+  isCatalogPlaceKey(key: string): boolean {
+    return key.startsWith('catalog/places/');
   }
 
   async putObjectBuffer(

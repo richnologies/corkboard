@@ -26,4 +26,10 @@ export class AuthController {
   ) {
     return this.authService.changePassword(user.userId, dto);
   }
+
+  @Patch('onboarding/complete')
+  @UseGuards(AuthGuard('jwt'))
+  completeOnboarding(@CurrentUser() user: AuthUser) {
+    return this.authService.completeOnboarding(user.userId);
+  }
 }

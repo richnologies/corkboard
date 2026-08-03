@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ItemCategory, Item, WineDetails } from '@org/domain';
+import { CatalogService } from '../catalog/catalog.service.js';
 import { ItemsService } from '../items/items.service.js';
 import { OpenAiService } from '../openai/openai.service.js';
 import { S3Service } from '../storage/s3.service.js';
@@ -50,6 +51,7 @@ export class WinesService {
 
   constructor(
     private readonly itemsService: ItemsService,
+    private readonly catalogService: CatalogService,
     private readonly openai: OpenAiService,
     private readonly s3Service: S3Service,
     @InjectModel(WineSearchCache.name)
@@ -624,6 +626,14 @@ export class WinesService {
   private async getCachedDetails(
     vintageId: string,
   ): Promise<WineLookupResult | null> {
+    const catalog = await this.catalogService.getWineByVivinoVintageId(vintageId);
+    if (catalog) {
+      const updatedAt = catalog.updatedAt?.getTime?.() ?? 0;
+      if (Date.now() - updatedAt <= DETAILS_CACHE_TTL_MS) {
+        return { name: catalog.name, wine: catalog.wine };
+      }
+    }
+
     const row = await this.detailsCacheModel
       .findOne({ vivinoVintageId: vintageId })
       .exec();
@@ -633,6 +643,12 @@ export class WinesService {
     if (Date.now() - updatedAt > DETAILS_CACHE_TTL_MS) {
       return null;
     }
+    // Promote legacy cache row into shared catalog.
+    void this.catalogService.ensureWineCatalog({
+      name: row.name,
+      wine: row.wine,
+      enrichedAt: row.enrichedAt,
+    });
     return { name: row.name, wine: row.wine };
   }
 
@@ -642,6 +658,12 @@ export class WinesService {
   ) {
     const vintageId = details.wine.vivinoVintageId;
     if (!vintageId) return;
+
+    await this.catalogService.ensureWineCatalog({
+      name: details.name,
+      wine: details.wine,
+      enrichedAt: options?.enriched ? new Date() : undefined,
+    });
 
     await this.detailsCacheModel
       .findOneAndUpdate(
@@ -663,6 +685,14 @@ export class WinesService {
   private async resolveVintageIdForWine(
     wineId: string,
   ): Promise<string | undefined> {
+    const fromCatalog = await this.catalogService.getWineByVivinoWineId(wineId);
+    if (fromCatalog?.vivinoVintageId) {
+      const updatedAt = fromCatalog.updatedAt?.getTime?.() ?? 0;
+      if (Date.now() - updatedAt <= DETAILS_CACHE_TTL_MS) {
+        return fromCatalog.vivinoVintageId;
+      }
+    }
+
     const cached = await this.detailsCacheModel
       .findOne({ vivinoWineId: wineId })
       .sort({ updatedAt: -1 })

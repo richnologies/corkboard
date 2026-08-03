@@ -39,7 +39,7 @@
               [label]="'item.rejectionReason' | translate"
               labelPlacement="stacked"
               formControlName="rejectionReason"
-              [placeholder]="'item.rejectionReasonPlaceholder' | translate"
+              [placeholder]="(isWineForm() ? 'item.rejectionReasonPlaceholderWine' : 'item.rejectionReasonPlaceholder') | translate"
             />
           </ion-item>
         }

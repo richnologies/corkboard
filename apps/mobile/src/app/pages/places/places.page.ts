@@ -34,6 +34,7 @@ import {
   addCircleOutline,
   calendarOutline,
   closeOutline,
+  cloudOfflineOutline,
   heart,
   listOutline,
   locationOutline,
@@ -55,13 +56,14 @@ import {
   locationCityCountry,
   locationLine,
 } from '../../shared/localized';
-import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
+import { clampVisitStars, visitStarsText } from '../../shared/visit-stars';
 
 addIcons({
   add,
   addCircleOutline,
   calendarOutline,
   closeOutline,
+  cloudOfflineOutline,
   heart,
   listOutline,
   locationOutline,
@@ -138,6 +140,8 @@ export class PlacesPage implements ViewWillEnter {
   readonly items = signal<Item[]>([]);
   readonly tags = signal<{ tag: string; count: number }[]>([]);
   readonly loading = signal(true);
+  readonly loadError = signal(false);
+  readonly refreshError = signal(false);
   readonly activeStatus = signal<ItemStatus | undefined>(undefined);
   readonly activeTag = signal<string | undefined>(undefined);
   readonly search = signal('');
@@ -184,6 +188,8 @@ export class PlacesPage implements ViewWillEnter {
     this.itemsService.list(filters).subscribe({
       next: (items) => {
         this.items.set(items);
+        this.loadError.set(false);
+        this.refreshError.set(false);
         const previewId = this.previewItem()?.id;
         if (previewId && !items.some((item) => item.id === previewId)) {
           this.previewItem.set(null);
@@ -196,6 +202,12 @@ export class PlacesPage implements ViewWillEnter {
       },
       error: () => {
         this.loading.set(false);
+        if (!this.items().length) {
+          this.loadError.set(true);
+          this.refreshError.set(false);
+        } else {
+          this.refreshError.set(true);
+        }
         options?.target?.complete();
       },
     });
@@ -256,6 +268,12 @@ export class PlacesPage implements ViewWillEnter {
     this.router.navigate(['/item', item.id], { queryParams: { logVisit: '1' } });
   }
 
+  onLogVisitClick(event: Event, item: Item) {
+    event.stopPropagation();
+    event.preventDefault();
+    this.logVisit(item);
+  }
+
   canDeleteItem(item: Item): boolean {
     const userId = this.auth.user()?.id;
     return !!userId && item.ownerId === userId;
@@ -296,6 +314,11 @@ export class PlacesPage implements ViewWillEnter {
     return itemDisplayName(item, this.i18n.locale());
   }
 
+  /** Prefer list thumbnail; fall back to full cover while thumbs backfill. */
+  coverThumbUrl(item: Item): string | undefined {
+    return item.place?.coverPhotoThumbUrl ?? item.place?.coverPhotoUrl;
+  }
+
   placeLocationLine(item: Item): string | null {
     return locationLine(item.location, this.i18n.locale()) ?? null;
   }
@@ -309,16 +332,11 @@ export class PlacesPage implements ViewWillEnter {
   }
 
   latestVisitScore(item: Item): number | null {
-    const score = item.latestVisit?.rating?.overall;
-    return score != null ? score : null;
+    return clampVisitStars(item.latestVisit?.rating?.overall);
   }
 
-  starsText(value: number | null | undefined): string {
+  faceFor(value: number | null | undefined): string {
     return visitStarsText(value);
-  }
-
-  starsLabel(value: number | null | undefined): string {
-    return visitStarsLabel(value);
   }
 
   latestVisitNotes(item: Item): string | null {

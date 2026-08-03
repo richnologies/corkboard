@@ -51,6 +51,13 @@ body {
   flex-shrink: 0;
   overflow: hidden;
 
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
   ion-icon {
     font-size: 22px;
     color: var(--ion-color-primary);
@@ -117,8 +124,8 @@ ion-fab {
 }
 
 ion-fab-button {
-  --box-shadow: 0 8px 28px rgba(37, 99, 235, 0.38);
-  --background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --box-shadow: 0 8px 28px rgba(107, 29, 42, 0.35);
+  --background: linear-gradient(135deg, #8b2e3b 0%, #6b1d2a 100%);
 }
 
 ion-button[fill='clear'] {
@@ -271,10 +278,6 @@ ion-item-sliding {
     background: var(--cork-person-pareja-bg);
     color: var(--cork-person-pareja-fg);
   }
-  &.colleague {
-    background: var(--cork-person-colleague-bg);
-    color: var(--cork-person-colleague-fg);
-  }
   &.other {
     background: var(--cork-person-other-bg);
     color: var(--cork-person-other-fg);
@@ -365,7 +368,7 @@ ion-item-sliding {
 }
 
 .score-badge {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #0284c7 100%);
+  background: linear-gradient(135deg, #8b2e3b 0%, #6b1d2a 50%, #a85c3a 100%);
   color: white;
   border-radius: var(--cork-radius-md);
   padding: 10px 12px;
@@ -373,7 +376,107 @@ ion-item-sliding {
   font-size: 18px;
   min-width: 52px;
   text-align: center;
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 6px 20px rgba(107, 29, 42, 0.28);
+}
+
+app-visit-rating-face {
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.visit-rating-face {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px 4px 6px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.visit-rating-face__emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.visit-rating-face__label {
+  display: inline;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.visit-rating-face--compact {
+  padding: 3px 8px 3px 5px;
+  gap: 5px;
+}
+
+.visit-rating-face--compact .visit-rating-face__emoji {
+  font-size: 18px;
+}
+
+.visit-rating-face--compact .visit-rating-face__label {
+  font-size: 11px;
+}
+
+.visit-rating-face--large {
+  padding: 8px 14px 8px 10px;
+  gap: 8px;
+}
+
+.visit-rating-face--large .visit-rating-face__emoji {
+  font-size: 32px;
+}
+
+.visit-rating-face--large .visit-rating-face__label {
+  font-size: 14px;
+}
+
+.visit-rating-face--face-only {
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.visit-rating-face--face-only .visit-rating-face__emoji {
+  font-size: 26px;
+}
+
+.visit-rating-face[data-level='1'] {
+  background: #fee2e2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
+.visit-rating-face[data-level='2'] {
+  background: #ffedd5;
+  border-color: #fb923c;
+  color: #9a3412;
+}
+
+.visit-rating-face[data-level='3'] {
+  background: #f5f5f4;
+  border-color: #a8a29e;
+  color: #44403c;
+}
+
+.visit-rating-face[data-level='4'] {
+  background: #dcfce7;
+  border-color: #4ade80;
+  color: #166534;
+}
+
+.visit-rating-face[data-level='5'] {
+  background: #ccfbf1;
+  border-color: #14b8a6;
+  color: #115e59;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.25);
 }
 
 .filter-bar {
@@ -400,6 +503,55 @@ ion-item-sliding {
 
   ion-spinner {
     --color: var(--ion-color-primary);
+  }
+}
+
+.empty-state.error-state {
+  ion-icon {
+    color: var(--cork-muted);
+  }
+}
+
+.refresh-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--cork-radius-md);
+  border: 1px solid var(--cork-border);
+  background: var(--cork-surface);
+  color: var(--cork-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+button.log-action {
+  appearance: none;
+  border: 1px solid var(--cork-primary-muted);
+  background: var(--cork-primary-soft);
+  color: var(--ion-color-primary);
+  border-radius: var(--cork-radius-pill);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+
+  ion-icon {
+    font-size: 16px;
+  }
+
+  &:active {
+    opacity: 0.85;
   }
 }
 

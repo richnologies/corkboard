@@ -71,17 +71,28 @@
         </div>
       } @else {
         @for (visit of selectedVisits(); track visit.id) {
-          <ion-card class="item-card compact" button (click)="openPlace(visit.itemId)">
+          <ion-card class="item-card compact" button (click)="openItem(visit.itemId)">
             <ion-card-content>
               <div class="visit-header">
                 <div class="visit-title">
-                  <ion-icon name="location-outline" />
+                  <ion-icon [name]="visitIcon(visit)" />
                   <h3>{{ visit.itemName }}</h3>
                 </div>
                 @if (visit.rating?.overall != null) {
-                  <span class="score" [attr.aria-label]="starsLabel(visit.rating!.overall)">{{ starsText(visit.rating!.overall) }}</span>
+                  <span
+                    class="visit-rating-face visit-rating-face--compact"
+                    [attr.data-level]="visit.rating!.overall"
+                    [attr.aria-label]="('item.ratingFace' + visit.rating!.overall) | translate"
+                  >
+                    <span class="visit-rating-face__emoji" aria-hidden="true">{{ faceFor(visit.rating!.overall) }}</span>
+                    <span class="visit-rating-face__label">{{ ('item.ratingFace' + visit.rating!.overall) | translate }}</span>
+                  </span>
                 }
               </div>
+
+              <p class="visit-meta">
+                {{ (isWineVisit(visit) ? 'category.wine' : 'category.' + (visit.itemCategory || 'other')) | translate }}
+              </p>
 
               @if (visit.authorDisplayName) {
                 <p class="visit-meta">{{ 'item.visitBy' | translate: { name: visit.authorDisplayName } }}</p>

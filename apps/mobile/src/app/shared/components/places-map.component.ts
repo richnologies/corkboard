@@ -11,13 +11,13 @@ import {
 import * as L from 'leaflet';
 import { Item, ItemStatus } from '@org/domain';
 import { hasMapLocation } from '../maps';
-import { visitStarsText } from '../visit-stars';
+import { visitStarsLabel, visitStarsText } from '../visit-stars';
 
 const STATUS_MARKER_COLORS: Record<ItemStatus, string> = {
-  [ItemStatus.Wishlist]: '#2563eb',
-  [ItemStatus.Planned]: '#0284c7',
-  [ItemStatus.Visited]: '#4338ca',
-  [ItemStatus.Rejected]: '#64748b',
+  [ItemStatus.Wishlist]: '#6b1d2a',
+  [ItemStatus.Planned]: '#a85c3a',
+  [ItemStatus.Visited]: '#3d5c3a',
+  [ItemStatus.Rejected]: '#7a6558',
 };
 
 const DEFAULT_CENTER: L.LatLngExpression = [40.4168, -3.7038];
@@ -202,7 +202,9 @@ export class PlacesMapComponent implements AfterViewInit, OnDestroy {
       parts.push(visitedAt.toLocaleDateString());
     }
     if (visit.rating?.overall != null) {
-      parts.push(visitStarsText(visit.rating.overall));
+      const face = visitStarsText(visit.rating.overall);
+      const label = visitStarsLabel(visit.rating.overall);
+      parts.push(label ? `${face} ${label}` : face);
     }
     return parts.length ? parts.join(' · ') : null;
   }

@@ -1,20 +1,30 @@
-/** Whole-star visit rating display helpers (1–5). */
+/** Whole-face visit rating display helpers (1–5). */
 
-export function clampVisitStars(value: number | null | undefined): number | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  return Math.max(1, Math.min(5, Math.round(value)));
+/** 1 disgust → 5 delight; faces chosen to read clearly at a glance. */
+export const VISIT_FACES = ['🤢', '😠', '😐', '😊', '🤩'] as const;
+
+export type VisitFaceScore = 1 | 2 | 3 | 4 | 5;
+
+export const VISIT_FACE_OPTIONS = VISIT_FACES.map((emoji, index) => ({
+  value: (index + 1) as VisitFaceScore,
+  emoji,
+}));
+
+export function clampVisitStars(value: number | null | undefined): VisitFaceScore | null {
+  if (value == null || !Number.isFinite(Number(value))) return null;
+  return Math.max(1, Math.min(5, Math.round(Number(value)))) as VisitFaceScore;
 }
 
-/** e.g. 4 → "★★★★☆" */
+/** e.g. 4 → "😊" */
 export function visitStarsText(value: number | null | undefined): string {
-  const stars = clampVisitStars(value);
-  if (stars == null) return '';
-  return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  const score = clampVisitStars(value);
+  if (score == null) return '';
+  return VISIT_FACES[score - 1];
 }
 
 /** e.g. 4 → "4/5" */
 export function visitStarsLabel(value: number | null | undefined): string {
-  const stars = clampVisitStars(value);
-  if (stars == null) return '';
-  return `${stars}/5`;
+  const score = clampVisitStars(value);
+  if (score == null) return '';
+  return `${score}/5`;
 }

@@ -1,5 +1,14 @@
-import { Person } from '@org/domain';
+import { Person, PersonType } from '@org/domain';
 import { PersonDocument } from './person.schema.js';
+
+/** Legacy DB values removed from PersonType are folded here. */
+function normalizePersonType(type: string): PersonType {
+  if (type === 'colleague') return PersonType.Other;
+  if (Object.values(PersonType).includes(type as PersonType)) {
+    return type as PersonType;
+  }
+  return PersonType.Other;
+}
 
 export function mapPerson(
   doc: PersonDocument,
@@ -9,7 +18,7 @@ export function mapPerson(
     id: doc.id,
     ownerId: String(doc.ownerId),
     name: doc.name,
-    type: doc.type,
+    type: normalizePersonType(doc.type),
     linkedUserId: doc.linkedUserId ? String(doc.linkedUserId) : undefined,
     sourceCount: stats?.sourceCount ?? 0,
     visitCount: stats?.visitCount ?? 0,

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { ItemCategory, ItemStatus, SourceType } from '@org/domain';
+import { CatalogKind, ItemCategory, ItemStatus, SourceType } from '@org/domain';
 import { HydratedDocument, Types } from 'mongoose';
 
 export type ItemDocument = HydratedDocument<Item>;
@@ -68,6 +68,9 @@ export class PlaceDetailsEmbed {
 
   @Prop()
   coverPhotoKey?: string;
+
+  @Prop()
+  coverPhotoThumbKey?: string;
 
   @Prop()
   coverPhotoUrl?: string;
@@ -215,6 +218,17 @@ export class Item {
   })
   status!: ItemStatus;
 
+  /** Shared catalog link (place or wine). */
+  @Prop({ type: String, enum: Object.values(CatalogKind) })
+  catalogKind?: CatalogKind;
+
+  @Prop({ type: Types.ObjectId, index: true })
+  catalogId?: Types.ObjectId;
+
+  /**
+   * Legacy / denormalized location for search. Prefer catalog join on read.
+   * Migration copies enrichment into catalog and may unset place/wine here.
+   */
   @Prop({ type: LocationEmbed })
   location?: LocationEmbed;
 
@@ -223,6 +237,9 @@ export class Item {
 
   @Prop({ type: WineDetailsEmbed })
   wine?: WineDetailsEmbed;
+
+  @Prop({ trim: true })
+  notes?: string;
 
   @Prop({ type: [String], default: [] })
   links!: string[];
@@ -242,6 +259,7 @@ export class Item {
 
 export const ItemSchema = SchemaFactory.createForClass(Item);
 ItemSchema.index({ ownerId: 1, status: 1 });
+ItemSchema.index({ ownerId: 1, catalogId: 1 }, { unique: true, sparse: true });
 ItemSchema.index({ ownerId: 1, 'source.type': 1 });
 ItemSchema.index({ ownerId: 1, 'source.referrerPersonId': 1 });
 ItemSchema.index({ ownerId: 1, 'wine.vivinoWineId': 1 });

@@ -1,6 +1,13 @@
 <ion-content class="auth-shell">
   <div class="auth-card">
-    <h1 class="brand-title">{{ 'auth.joinTitle' | translate }}</h1>
+    <img
+      class="brand-mark"
+      src="apple-touch-icon.png"
+      width="72"
+      height="72"
+      alt=""
+    />
+    <h1 class="brand-title">{{ 'app.name' | translate }}</h1>
     <p class="subtitle">{{ 'auth.joinSubtitle' | translate }}</p>
 
     <form [formGroup]="form" (ngSubmit)="submit()">

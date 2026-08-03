@@ -46,6 +46,31 @@ export class AuthService {
     });
   }
 
+  needsOnboarding(): boolean {
+    const user = this.userSignal();
+    return !!user && !user.onboardingCompletedAt;
+  }
+
+  completeOnboarding() {
+    return this.api
+      .patch<UserProfile>('/auth/onboarding/complete', {})
+      .pipe(
+        tap((user) => {
+          localStorage.setItem(USER_KEY, JSON.stringify(user));
+          this.userSignal.set(user);
+        }),
+      );
+  }
+
+  /** Post-auth landing: onboarding wizard or main tabs. */
+  postAuthNavigate() {
+    if (this.needsOnboarding()) {
+      void this.router.navigateByUrl('/onboarding');
+      return;
+    }
+    void this.router.navigateByUrl('/tabs/places');
+  }
+
   logout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

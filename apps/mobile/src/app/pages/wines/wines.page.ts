@@ -25,7 +25,15 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { add, addCircleOutline, calendarOutline, heart, trashOutline, wineOutline } from 'ionicons/icons';
+import {
+  add,
+  addCircleOutline,
+  calendarOutline,
+  cloudOfflineOutline,
+  heart,
+  trashOutline,
+  wineOutline,
+} from 'ionicons/icons';
 import { ItemsService } from '../../core/services/items.service';
 import { TagsService } from '../../core/services/tags.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -34,9 +42,17 @@ import { categoryIcons } from '../../shared/labels';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { itemDisplayName, wineRegion } from '../../shared/localized';
-import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
+import { clampVisitStars, visitStarsText } from '../../shared/visit-stars';
 
-addIcons({ add, addCircleOutline, calendarOutline, heart, trashOutline, wineOutline });
+addIcons({
+  add,
+  addCircleOutline,
+  calendarOutline,
+  cloudOfflineOutline,
+  heart,
+  trashOutline,
+  wineOutline,
+});
 
 @Component({
   selector: 'app-wines',
@@ -79,6 +95,8 @@ export class WinesPage implements ViewWillEnter {
   readonly items = signal<Item[]>([]);
   readonly tags = signal<{ tag: string; count: number }[]>([]);
   readonly loading = signal(true);
+  readonly loadError = signal(false);
+  readonly refreshError = signal(false);
   readonly activeStatus = signal<ItemStatus | undefined>(undefined);
   readonly activeTag = signal<string | undefined>(undefined);
   readonly search = signal('');
@@ -115,11 +133,19 @@ export class WinesPage implements ViewWillEnter {
     this.itemsService.list(filters).subscribe({
       next: (items) => {
         this.items.set(items);
+        this.loadError.set(false);
+        this.refreshError.set(false);
         this.loading.set(false);
         options?.target?.complete();
       },
       error: () => {
         this.loading.set(false);
+        if (!this.items().length) {
+          this.loadError.set(true);
+          this.refreshError.set(false);
+        } else {
+          this.refreshError.set(true);
+        }
         options?.target?.complete();
       },
     });
@@ -146,6 +172,12 @@ export class WinesPage implements ViewWillEnter {
 
   logVisit(item: Item) {
     this.router.navigate(['/item', item.id], { queryParams: { logVisit: '1' } });
+  }
+
+  onLogVisitClick(event: Event, item: Item) {
+    event.stopPropagation();
+    event.preventDefault();
+    this.logVisit(item);
   }
 
   canDeleteItem(item: Item): boolean {
@@ -205,16 +237,11 @@ export class WinesPage implements ViewWillEnter {
   }
 
   latestVisitScore(item: Item): number | null {
-    const score = item.latestVisit?.rating?.overall;
-    return score != null ? score : null;
+    return clampVisitStars(item.latestVisit?.rating?.overall);
   }
 
-  starsText(value: number | null | undefined): string {
+  faceFor(value: number | null | undefined): string {
     return visitStarsText(value);
-  }
-
-  starsLabel(value: number | null | undefined): string {
-    return visitStarsLabel(value);
   }
 
   latestVisitNotes(item: Item): string | null {

@@ -23,13 +23,15 @@ import {
   imagesOutline,
   locationOutline,
   peopleOutline,
+  wineOutline,
 } from 'ionicons/icons';
-import { ExperienceCalendarEntry } from '@org/domain';
+import { ExperienceCalendarEntry, ItemCategory, isWineCategory } from '@org/domain';
 import { firstValueFrom } from 'rxjs';
 import { ExperiencesService } from '../../core/services/experiences.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
+import { categoryIcons } from '../../shared/labels';
+import { visitStarsText } from '../../shared/visit-stars';
 
 addIcons({
   calendarOutline,
@@ -38,6 +40,7 @@ addIcons({
   imagesOutline,
   locationOutline,
   peopleOutline,
+  wineOutline,
 });
 
 interface CalendarCell {
@@ -218,16 +221,27 @@ export class CalendarPage implements OnInit, ViewWillEnter {
     return key === toDateKey(new Date());
   }
 
-  openPlace(itemId: string) {
+  openItem(itemId: string) {
     this.router.navigate(['/item', itemId]);
   }
 
-  starsText(value: number | null | undefined): string {
-    return visitStarsText(value);
+  /** @deprecated Use openItem */
+  openPlace(itemId: string) {
+    this.openItem(itemId);
   }
 
-  starsLabel(value: number | null | undefined): string {
-    return visitStarsLabel(value);
+  visitIcon(visit: ExperienceCalendarEntry): string {
+    const category = visit.itemCategory ?? ItemCategory.Other;
+    if (isWineCategory(category)) return 'wine-outline';
+    return categoryIcons[category] ?? 'location-outline';
+  }
+
+  isWineVisit(visit: ExperienceCalendarEntry): boolean {
+    return isWineCategory(visit.itemCategory);
+  }
+
+  faceFor(value: number | null | undefined): string {
+    return visitStarsText(value);
   }
 
   private startOfMonth(date: Date): Date {

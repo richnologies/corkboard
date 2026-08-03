@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { ExperienceVisibility } from '@org/domain';
+import { CatalogKind, ExperienceVisibility } from '@org/domain';
 import { HydratedDocument, Types } from 'mongoose';
 
 export type ExperienceDocument = HydratedDocument<Experience>;
@@ -29,6 +29,13 @@ export class ExperiencePhotoEmbed {
 export class Experience {
   @Prop({ type: Types.ObjectId, required: true, index: true, ref: 'Item' })
   itemId!: Types.ObjectId;
+
+  /** Denormalized shared catalog ref from the library entry */
+  @Prop({ type: Types.ObjectId, index: true })
+  catalogId?: Types.ObjectId;
+
+  @Prop({ type: String, enum: Object.values(CatalogKind) })
+  catalogKind?: CatalogKind;
 
   @Prop({ type: Types.ObjectId, required: true, index: true, ref: 'User' })
   authorId!: Types.ObjectId;
@@ -81,6 +88,7 @@ export class Experience {
 
 export const ExperienceSchema = SchemaFactory.createForClass(Experience);
 ExperienceSchema.index({ itemId: 1, visitedAt: -1 });
+ExperienceSchema.index({ catalogId: 1, visitedAt: -1 });
 ExperienceSchema.index({ wineItemIds: 1, visitedAt: -1 });
 ExperienceSchema.index({ authorId: 1, visitedAt: -1 });
 ExperienceSchema.index({ participantUserIds: 1 });

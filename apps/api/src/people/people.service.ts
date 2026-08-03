@@ -249,6 +249,9 @@ export class PeopleService implements OnModuleInit {
 
     if (dto.type !== undefined) {
       person.type = dto.type;
+    } else if ((person.type as string) === 'colleague') {
+      // Legacy type removed from PersonType.
+      person.type = PersonType.Other;
     }
 
     if (dto.linkedUserId !== undefined) {

@@ -13,6 +13,8 @@ export function mapExperience(doc: ExperienceDocument): ExperienceEntity {
   return {
     id: doc.id,
     itemId: String(doc.itemId),
+    catalogId: doc.catalogId ? String(doc.catalogId) : undefined,
+    catalogKind: doc.catalogKind,
     authorId: authorId ?? '',
     visibility: doc.visibility ?? ExperienceVisibility.Shared,
     participantUserIds: (doc.participantUserIds ?? []).map((id) => String(id)),

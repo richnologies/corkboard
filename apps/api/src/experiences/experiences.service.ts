@@ -91,6 +91,8 @@ export class ExperiencesService implements OnModuleInit {
 
     const experience = await this.experienceModel.create({
       itemId: toObjectId(itemId),
+      catalogId: item.catalogId ? toObjectId(String(item.catalogId)) : undefined,
+      catalogKind: item.catalogKind,
       authorId: toObjectId(userId),
       visibility: dto.visibility ?? ExperienceVisibility.Shared,
       participantUserIds,
@@ -259,6 +261,7 @@ export class ExperiencesService implements OnModuleInit {
             id: experience.id,
             itemId: experience.itemId,
             itemName: item.name,
+            itemCategory: item.category,
             visitedAt: experience.visitedAt,
             rating: experience.rating,
             notes: experience.notes,

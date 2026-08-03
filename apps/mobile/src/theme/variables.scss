@@ -11,65 +11,69 @@
   --cork-radius-lg: 18px;
   --cork-radius-pill: 999px;
 
-  --cork-cream: #f0f4fa;
-  --cork-surface: #ffffff;
-  --cork-brown: #1e40af;
-  --cork-brown-light: #2563eb;
-  --cork-tan: #93c5fd;
-  --cork-terracotta: #0284c7;
-  --cork-ink: #0f172a;
-  --cork-text: #0f172a;
-  --cork-muted: #64748b;
-  --cork-border: #e2e8f0;
-  --cork-shadow: 0 4px 24px rgba(37, 99, 235, 0.08);
-  --cork-shadow-lg: 0 12px 40px rgba(37, 99, 235, 0.12);
-  --cork-primary-soft: #eff6ff;
-  --cork-primary-muted: #dbeafe;
-  --cork-gradient-start: #eff6ff;
-  --cork-gradient-end: #dbeafe;
+  /* Wine / cork brand — warm burgundy on cream paper */
+  --cork-cream: #f7f1e8;
+  --cork-surface: #fffaf3;
+  --cork-burgundy: #6b1d2a;
+  --cork-burgundy-light: #8b2e3b;
+  --cork-cork: #c4a484;
+  --cork-terracotta: #a85c3a;
+  --cork-ink: #2a1810;
+  --cork-text: #2a1810;
+  --cork-muted: #7a6558;
+  --cork-border: #e6d9c8;
+  --cork-shadow: 0 4px 24px rgba(107, 29, 42, 0.1);
+  --cork-shadow-lg: 0 12px 40px rgba(107, 29, 42, 0.14);
+  --cork-primary-soft: #f3e6e4;
+  --cork-primary-muted: #e8d0ce;
+  --cork-gradient-start: #f7f1e8;
+  --cork-gradient-end: #f0e4d6;
 
-  --cork-status-wishlist-bg: #dbeafe;
-  --cork-status-wishlist-fg: #1d4ed8;
-  --cork-status-planned-bg: #e0f2fe;
-  --cork-status-planned-fg: #0369a1;
-  --cork-status-visited-bg: #e0e7ff;
-  --cork-status-visited-fg: #4338ca;
-  --cork-status-rejected-bg: #f1f5f9;
-  --cork-status-rejected-fg: #64748b;
+  /* Legacy aliases (were misnamed cool-blue) → brand roles */
+  --cork-brown: var(--cork-burgundy);
+  --cork-brown-light: var(--cork-burgundy-light);
+  --cork-tan: var(--cork-cork);
 
-  --cork-favorite-bg: #ede9fe;
-  --cork-favorite-fg: #6d28d9;
-  --cork-favorite-border: #c4b5fd;
-  --cork-favorite-heart: #e11d48;
+  --cork-status-wishlist-bg: #f3e6e4;
+  --cork-status-wishlist-fg: #6b1d2a;
+  --cork-status-planned-bg: #f0e6d8;
+  --cork-status-planned-fg: #8a5a2b;
+  --cork-status-visited-bg: #e8efe6;
+  --cork-status-visited-fg: #3d5c3a;
+  --cork-status-rejected-bg: #efe9e2;
+  --cork-status-rejected-fg: #7a6558;
 
-  --cork-person-friend-bg: #dbeafe;
-  --cork-person-friend-fg: #1d4ed8;
+  --cork-favorite-bg: #f3e6e4;
+  --cork-favorite-fg: #6b1d2a;
+  --cork-favorite-border: #d4a8ae;
+  --cork-favorite-heart: #9b1b30;
+
+  --cork-person-friend-bg: #f3e6e4;
+  --cork-person-friend-fg: #6b1d2a;
   --cork-person-family-bg: #fce7f3;
-  --cork-person-family-fg: #be185d;
-  --cork-person-pareja-bg: #fce7f3;
-  --cork-person-pareja-fg: #9d174d;
-  --cork-person-colleague-bg: #e0e7ff;
-  --cork-person-colleague-fg: #4338ca;
-  --cork-person-other-bg: #f1f5f9;
-  --cork-person-other-fg: #64748b;
+  --cork-person-family-fg: #9d174d;
+  --cork-person-pareja-bg: #fce8e0;
+  --cork-person-pareja-fg: #b4532a;
+  --cork-person-other-bg: #efe9e2;
+  --cork-person-other-fg: #7a6558;
 
   --ion-background-color: var(--cork-cream);
   --ion-text-color: var(--cork-ink);
-  --ion-color-primary: #2563eb;
-  --ion-color-primary-rgb: 37, 99, 235;
+  --ion-color-primary: #6b1d2a;
+  --ion-color-primary-rgb: 107, 29, 42;
   --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-shade: #1d4ed8;
-  --ion-color-primary-tint: #3b82f6;
+  --ion-color-primary-shade: #5a1823;
+  --ion-color-primary-tint: #7d3340;
 
-  --ion-color-secondary: #60a5fa;
-  --ion-color-secondary-rgb: 96, 165, 250;
-  --ion-color-secondary-contrast: #0f172a;
+  --ion-color-secondary: #c4a484;
+  --ion-color-secondary-rgb: 196, 164, 132;
+  --ion-color-secondary-contrast: #2a1810;
 
-  --ion-color-tertiary: #0284c7;
-  --ion-color-tertiary-rgb: 2, 132, 199;
+  --ion-color-tertiary: #a85c3a;
+  --ion-color-tertiary-rgb: 168, 92, 58;
   --ion-color-tertiary-contrast: #ffffff;
 
-  --ion-toolbar-background: rgba(255, 255, 255, 0.92);
+  --ion-toolbar-background: rgba(255, 250, 243, 0.92);
   --ion-toolbar-color: var(--cork-ink);
   --ion-item-background: var(--cork-surface);
   --ion-card-background: var(--cork-surface);
@@ -77,51 +81,59 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --cork-cream: #0b1220;
-    --cork-surface: #111827;
-    --cork-brown: #3b82f6;
-    --cork-brown-light: #60a5fa;
-    --cork-tan: #1e3a5f;
-    --cork-terracotta: #38bdf8;
-    --cork-ink: #f1f5f9;
-    --cork-text: #f1f5f9;
-    --cork-muted: #94a3b8;
-    --cork-border: #1e293b;
-    --cork-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-    --cork-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
-    --cork-primary-soft: #172554;
-    --cork-primary-muted: #1e3a8a;
-    --cork-gradient-start: #0b1220;
-    --cork-gradient-end: #111827;
+    --cork-cream: #1a1210;
+    --cork-surface: #241816;
+    --cork-burgundy: #c97a86;
+    --cork-burgundy-light: #d49aa3;
+    --cork-cork: #8a6f56;
+    --cork-terracotta: #d08a66;
+    --cork-ink: #f5ebe3;
+    --cork-text: #f5ebe3;
+    --cork-muted: #b5a396;
+    --cork-border: #3a2a24;
+    --cork-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    --cork-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --cork-primary-soft: #3a2226;
+    --cork-primary-muted: #4a2a30;
+    --cork-gradient-start: #1a1210;
+    --cork-gradient-end: #241816;
 
-    --cork-status-wishlist-bg: #1e3a8a;
-    --cork-status-wishlist-fg: #93c5fd;
-    --cork-status-planned-bg: #0c4a6e;
-    --cork-status-planned-fg: #7dd3fc;
-    --cork-status-visited-bg: #312e81;
-    --cork-status-visited-fg: #a5b4fc;
-    --cork-status-rejected-bg: #1e293b;
-    --cork-status-rejected-fg: #94a3b8;
+    --cork-brown: var(--cork-burgundy);
+    --cork-brown-light: var(--cork-burgundy-light);
+    --cork-tan: var(--cork-cork);
 
-    --cork-favorite-bg: #4c1d95;
-    --cork-favorite-fg: #c4b5fd;
-    --cork-favorite-border: #6d28d9;
-    --cork-favorite-heart: #fb7185;
+    --cork-status-wishlist-bg: #3a2226;
+    --cork-status-wishlist-fg: #e8b4bb;
+    --cork-status-planned-bg: #3a2e22;
+    --cork-status-planned-fg: #e0c4a0;
+    --cork-status-visited-bg: #243028;
+    --cork-status-visited-fg: #a8c9a4;
+    --cork-status-rejected-bg: #2a221c;
+    --cork-status-rejected-fg: #b5a396;
 
-    --cork-person-friend-bg: #1e3a8a;
-    --cork-person-friend-fg: #93c5fd;
-    --cork-person-family-bg: #831843;
+    --cork-favorite-bg: #3a2226;
+    --cork-favorite-fg: #e8b4bb;
+    --cork-favorite-border: #8b2e3b;
+    --cork-favorite-heart: #f0718a;
+
+    --cork-person-friend-bg: #3a2226;
+    --cork-person-friend-fg: #e8b4bb;
+    --cork-person-family-bg: #4a1d32;
     --cork-person-family-fg: #f9a8d4;
-    --cork-person-pareja-bg: #9d174d;
-    --cork-person-pareja-fg: #fbcfe8;
-    --cork-person-colleague-bg: #312e81;
-    --cork-person-colleague-fg: #a5b4fc;
-    --cork-person-other-bg: #1e293b;
-    --cork-person-other-fg: #94a3b8;
+    --cork-person-pareja-bg: #3a241c;
+    --cork-person-pareja-fg: #f0b090;
+    --cork-person-other-bg: #2a221c;
+    --cork-person-other-fg: #b5a396;
 
     --ion-background-color: var(--cork-cream);
     --ion-text-color: var(--cork-ink);
-    --ion-toolbar-background: rgba(17, 24, 39, 0.92);
+    --ion-color-primary: #c97a86;
+    --ion-color-primary-rgb: 201, 122, 134;
+    --ion-color-primary-contrast: #1a1210;
+    --ion-color-primary-shade: #b06b76;
+    --ion-color-primary-tint: #ce8792;
+
+    --ion-toolbar-background: rgba(36, 24, 22, 0.92);
     --ion-item-background: var(--cork-surface);
     --ion-card-background: var(--cork-surface);
   }

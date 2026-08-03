@@ -1,0 +1,40 @@
+<ion-content class="onboarding-content">
+  <div class="onboarding-shell">
+    <p class="brand">Malviviendo</p>
+    <h1>{{ 'onboarding.title' | translate }}</h1>
+    <p class="lead">{{ 'onboarding.lead' | translate }}</p>
+
+    <div class="choices">
+      <button type="button" class="choice" (click)="choosePlace()">
+        <ion-icon name="map-outline" aria-hidden="true" />
+        <span class="choice-title">{{ 'onboarding.placeTitle' | translate }}</span>
+        <span class="choice-body">{{ 'onboarding.placeBody' | translate }}</span>
+      </button>
+
+      <button type="button" class="choice" (click)="chooseWine()">
+        <ion-icon name="wine-outline" aria-hidden="true" />
+        <span class="choice-title">{{ 'onboarding.wineTitle' | translate }}</span>
+        <span class="choice-body">{{ 'onboarding.wineBody' | translate }}</span>
+      </button>
+    </div>
+
+    @if (error()) {
+      <ion-text color="danger">
+        <p class="error">{{ error() }}</p>
+      </ion-text>
+    }
+
+    <ion-button
+      fill="clear"
+      class="skip"
+      [disabled]="skipping()"
+      (click)="skip()"
+    >
+      @if (skipping()) {
+        <ion-spinner name="crescent" />
+      } @else {
+        {{ 'onboarding.skip' | translate }}
+      }
+    </ion-button>
+  </div>
+</ion-content>

@@ -18,6 +18,12 @@
   </ion-refresher>
 
   <div class="filter-bar">
+    <ion-chip
+      [color]="!activeStatus() ? 'primary' : undefined"
+      (click)="setStatus(undefined)"
+    >
+      {{ 'common.all' | translate }}
+    </ion-chip>
     @for (status of statuses; track status) {
       <ion-chip
         [color]="activeStatus() === status ? 'primary' : undefined"
@@ -42,8 +48,19 @@
     </div>
   }
 
+  @if (refreshError() && items().length) {
+    <p class="refresh-banner">{{ 'common.refreshFailed' | translate }}</p>
+  }
+
   @if (loading()) {
     <div class="loading-center"><ion-spinner /></div>
+  } @else if (loadError()) {
+    <div class="empty-state error-state">
+      <ion-icon name="cloud-offline-outline" />
+      <h3>{{ 'common.loadFailedTitle' | translate }}</h3>
+      <p>{{ 'common.loadFailedBody' | translate }}</p>
+      <ion-button (click)="load()">{{ 'common.retry' | translate }}</ion-button>
+    </div>
   } @else if (!items().length) {
     <div class="empty-state">
       <ion-icon name="wine-outline" />
@@ -88,7 +105,14 @@
                     {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
                   </span>
                   @if (latestVisitScore(item); as score) {
-                    <span class="visit-score" [attr.aria-label]="starsLabel(score)">{{ starsText(score) }}</span>
+                    <span
+                      class="visit-rating-face visit-rating-face--compact"
+                      [attr.data-level]="score"
+                      [attr.aria-label]="('item.ratingFace' + score) | translate"
+                    >
+                      <span class="visit-rating-face__emoji" aria-hidden="true">{{ faceFor(score) }}</span>
+                      <span class="visit-rating-face__label">{{ ('item.ratingFace' + score) | translate }}</span>
+                    </span>
                   }
                   @if (latestVisitNotes(item); as notes) {
                     <span class="visit-notes">{{ notes }}</span>
@@ -113,6 +137,16 @@
                   }
                 </div>
               }
+              <div class="card-actions">
+                <button
+                  type="button"
+                  class="log-action"
+                  (click)="onLogVisitClick($event, item)"
+                >
+                  <ion-icon name="add-circle-outline" />
+                  {{ 'item.logTasting' | translate }}
+                </button>
+              </div>
             </div>
           </ion-item>
           <ion-item-options side="end">
@@ -139,7 +173,10 @@
   }
 
   <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-    <ion-fab-button (click)="addItem()">
+    <ion-fab-button
+      (click)="addItem()"
+      [attr.aria-label]="'wines.addWine' | translate"
+    >
       <ion-icon name="add" />
     </ion-fab-button>
   </ion-fab>

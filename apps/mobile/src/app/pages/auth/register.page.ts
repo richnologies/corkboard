@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import {
   IonButton,
   IonContent,
@@ -36,7 +36,6 @@ export class RegisterPage {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
-  private readonly router = inject(Router);
 
   readonly loading = signal(false);
   readonly error = signal('');
@@ -55,7 +54,7 @@ export class RegisterPage {
     this.auth.register(email, password, displayName).subscribe({
       next: () => {
         this.loading.set(false);
-        this.router.navigateByUrl('/tabs/places');
+        this.auth.postAuthNavigate();
       },
       error: (err) => {
         this.loading.set(false);

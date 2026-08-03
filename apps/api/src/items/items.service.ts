@@ -10,6 +10,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import {
+  CatalogKind,
   categoryHasLocation,
   hasBothLocales,
   ItemCategory,
@@ -33,14 +34,16 @@ import {
 import { PeopleService } from '../people/people.service.js';
 import { S3Service } from '../storage/s3.service.js';
 import { OpenAiService } from '../openai/openai.service.js';
-import { PlacesService } from '../places/places.service.js';
+import { CatalogService } from '../catalog/catalog.service.js';
 
 const LIST_ENRICH_BACKFILL_LIMIT = 3;
+const LIST_COVER_THUMB_BACKFILL_LIMIT = 8;
 
 @Injectable()
 export class ItemsService implements OnModuleInit {
   private readonly logger = new Logger(ItemsService.name);
   private readonly enrichingIds = new Set<string>();
+  private readonly coverThumbIds = new Set<string>();
 
   constructor(
     @InjectModel(Item.name) private readonly itemModel: Model<ItemDocument>,
@@ -51,7 +54,7 @@ export class ItemsService implements OnModuleInit {
     private readonly peopleService: PeopleService,
     private readonly s3Service: S3Service,
     private readonly openai: OpenAiService,
-    private readonly placesService: PlacesService,
+    private readonly catalogService: CatalogService,
   ) {}
 
   async onModuleInit() {
@@ -70,6 +73,29 @@ export class ItemsService implements OnModuleInit {
     const resolvedSource = dto.source
       ? await this.peopleService.resolveSourceForWrite(ownerId, dto.source)
       : undefined;
+
+    const catalogRef = await this.catalogService.ensureCatalogForItemWrite({
+      name: dto.name,
+      nameEn: prepared.nameEn ?? dto.nameEn,
+      nameEs: prepared.nameEs ?? dto.nameEs,
+      category: dto.category,
+      location: dto.location,
+      place: dto.place,
+      wine: dto.wine,
+    });
+
+    if (catalogRef) {
+      const existing = await this.itemModel
+        .findOne({
+          ownerId: new Types.ObjectId(ownerId),
+          catalogId: catalogRef.catalogId,
+        })
+        .exec();
+      if (existing) {
+        return this.hydrateItem(mapItem(existing));
+      }
+    }
+
     const payload: Record<string, unknown> = {
       ownerId: new Types.ObjectId(ownerId),
       ...dto,
@@ -78,17 +104,40 @@ export class ItemsService implements OnModuleInit {
       source: resolvedSource,
     };
     delete payload.unsetRejectionReason;
-    if (!categoryHasLocation(dto.category)) {
-      delete payload.location;
+
+    if (catalogRef) {
+      payload.catalogKind = catalogRef.catalogKind;
+      payload.catalogId = catalogRef.catalogId;
+      // Library rows keep thin location for search; enrichment lives on catalog.
       delete payload.place;
-    }
-    if (!isWineCategory(dto.category)) {
-      delete payload.wine;
+      if (catalogRef.catalogKind === CatalogKind.Wine) {
+        // Keep vivino ids for legacy lookups; full wine details from catalog.
+        if (dto.wine) {
+          payload.wine = {
+            vivinoWineId: dto.wine.vivinoWineId,
+            vivinoVintageId: dto.wine.vivinoVintageId,
+            vivinoUrl: dto.wine.vivinoUrl,
+            year: dto.wine.year,
+            winery: dto.wine.winery,
+          };
+        }
+        delete payload.location;
+        delete payload.place;
+      }
     } else {
-      delete payload.place;
+      if (!categoryHasLocation(dto.category)) {
+        delete payload.location;
+        delete payload.place;
+      }
+      if (!isWineCategory(dto.category)) {
+        delete payload.wine;
+      } else {
+        delete payload.place;
+      }
     }
+
     const item = await this.itemModel.create(payload);
-    let mapped = await this.withResolvedMedia(mapItem(item));
+    let mapped = await this.hydrateItem(mapItem(item));
     mapped = await this.ensurePlaceGoogleEnrichment(ownerId, mapped);
     return mapped;
   }
@@ -148,10 +197,12 @@ export class ItemsService implements OnModuleInit {
         ? { ...item, latestVisit: mapLatestVisitSummary(latest) }
         : item;
     });
+    const withCatalog = await this.catalogService.projectOntoItems(mapped);
     const resolved = await Promise.all(
-      mapped.map((item) => this.withResolvedMedia(item)),
+      withCatalog.map((item) => this.withResolvedMedia(item)),
     );
     this.queuePlaceEnrichmentBackfill(userId, resolved);
+    this.queuePlaceCoverThumbBackfill(resolved);
     return resolved;
   }
 
@@ -303,40 +354,82 @@ export class ItemsService implements OnModuleInit {
 
   async findOne(userId: string, itemId: string) {
     const item = await this.getAccessibleItem(userId, itemId);
-    let mapped = await this.withResolvedMedia(mapItem(item));
+    let mapped = await this.hydrateItem(mapItem(item));
     mapped = await this.ensurePlaceLocalized(userId, mapped);
     mapped = await this.ensurePlaceGoogleEnrichment(userId, mapped);
     return mapped;
   }
 
   async findOwnedByGooglePlaceId(ownerId: string, googlePlaceId: string) {
+    const catalog = await this.catalogService.getPlaceByExternalId(googlePlaceId);
+    if (catalog) {
+      const byCatalog = await this.itemModel
+        .findOne({
+          ownerId: new Types.ObjectId(ownerId),
+          catalogId: catalog._id,
+        })
+        .exec();
+      if (byCatalog) return this.hydrateItem(mapItem(byCatalog));
+    }
     const item = await this.itemModel
       .findOne({
         ownerId: new Types.ObjectId(ownerId),
         'location.googlePlaceId': googlePlaceId,
       })
       .exec();
-    return item ? mapItem(item) : null;
+    return item ? this.hydrateItem(mapItem(item)) : null;
   }
 
   async findOwnedByVivinoWineId(ownerId: string, vivinoWineId: string) {
+    const catalog = await this.catalogService.getWineByVivinoWineId(vivinoWineId);
+    if (catalog) {
+      const byCatalog = await this.itemModel
+        .findOne({
+          ownerId: new Types.ObjectId(ownerId),
+          catalogId: catalog._id,
+        })
+        .exec();
+      if (byCatalog) return this.hydrateItem(mapItem(byCatalog));
+    }
     const item = await this.itemModel
       .findOne({
         ownerId: new Types.ObjectId(ownerId),
         'wine.vivinoWineId': vivinoWineId,
       })
       .exec();
-    return item ? mapItem(item) : null;
+    return item ? this.hydrateItem(mapItem(item)) : null;
   }
 
   async findOwnedByVivinoVintageId(ownerId: string, vivinoVintageId: string) {
+    const catalog = await this.catalogService.getWineByVivinoVintageId(
+      vivinoVintageId,
+    );
+    if (catalog) {
+      const byCatalog = await this.itemModel
+        .findOne({
+          ownerId: new Types.ObjectId(ownerId),
+          catalogId: catalog._id,
+        })
+        .exec();
+      if (byCatalog) return this.hydrateItem(mapItem(byCatalog));
+    }
     const item = await this.itemModel
       .findOne({
         ownerId: new Types.ObjectId(ownerId),
         'wine.vivinoVintageId': vivinoVintageId,
       })
       .exec();
-    return item ? mapItem(item) : null;
+    return item ? this.hydrateItem(mapItem(item)) : null;
+  }
+
+  async findOwnedByCatalogId(ownerId: string, catalogId: string) {
+    const item = await this.itemModel
+      .findOne({
+        ownerId: new Types.ObjectId(ownerId),
+        catalogId: new Types.ObjectId(catalogId),
+      })
+      .exec();
+    return item ? this.hydrateItem(mapItem(item)) : null;
   }
 
   async update(userId: string, itemId: string, dto: UpdateItemDto) {
@@ -374,6 +467,34 @@ export class ItemsService implements OnModuleInit {
       delete update.rejectionReason;
     }
 
+    // Keep shared catalog in sync when location/wine details change.
+    if (dto.location || dto.wine || dto.place || dto.name) {
+      const catalogRef = await this.catalogService.ensureCatalogForItemWrite({
+        name: (update.name as string) ?? existing.name,
+        nameEn: (update.nameEn as string | undefined) ?? existing.nameEn,
+        nameEs: (update.nameEs as string | undefined) ?? existing.nameEs,
+        category,
+        location: (update.location as Location | undefined) ?? existing.location,
+        place: (update.place as PlaceDetails | undefined) ?? existing.place,
+        wine: (update.wine as WineDetails | undefined) ?? existing.wine,
+      });
+      if (catalogRef) {
+        update.catalogKind = catalogRef.catalogKind;
+        update.catalogId = catalogRef.catalogId;
+        delete update.place;
+        if (catalogRef.catalogKind === CatalogKind.Wine && update.wine) {
+          const wine = update.wine as WineDetails;
+          update.wine = {
+            vivinoWineId: wine.vivinoWineId,
+            vivinoVintageId: wine.vivinoVintageId,
+            vivinoUrl: wine.vivinoUrl,
+            year: wine.year,
+            winery: wine.winery,
+          };
+        }
+      }
+    }
+
     const item = await this.itemModel
       .findByIdAndUpdate(
         itemId,
@@ -384,7 +505,7 @@ export class ItemsService implements OnModuleInit {
         { new: true },
       )
       .exec();
-    return this.withResolvedMedia(mapItem(item!));
+    return this.hydrateItem(mapItem(item!));
   }
 
   async remove(userId: string, itemId: string) {
@@ -472,6 +593,11 @@ export class ItemsService implements OnModuleInit {
     );
   }
 
+  private async hydrateItem(item: ItemEntity): Promise<ItemEntity> {
+    const [projected] = await this.catalogService.projectOntoItems([item]);
+    return this.withResolvedMedia(projected ?? item);
+  }
+
   private async withResolvedMedia(item: ItemEntity): Promise<ItemEntity> {
     let next = await this.withResolvedWineImage(item);
     next = await this.withResolvedPlaceCover(next);
@@ -491,14 +617,72 @@ export class ItemsService implements OnModuleInit {
 
   private async withResolvedPlaceCover(item: ItemEntity): Promise<ItemEntity> {
     if (!item.place?.coverPhotoKey) return item;
+
+    let place = item.place;
+    if (item.catalogId && !place.coverPhotoThumbKey) {
+      try {
+        const updated = await this.catalogService.ensurePlaceCoverThumb(
+          item.catalogId,
+        );
+        if (updated?.place?.coverPhotoThumbKey) {
+          place = {
+            ...place,
+            coverPhotoThumbKey: updated.place.coverPhotoThumbKey,
+          };
+        }
+      } catch {
+        // Fall back to full cover URL below.
+      }
+    }
+
     try {
       const coverPhotoUrl = await this.s3Service.createViewUrl(
-        item.place.coverPhotoKey,
+        place.coverPhotoKey!,
       );
-      const place: PlaceDetails = { ...item.place, coverPhotoUrl };
-      return { ...item, place };
+      let coverPhotoThumbUrl: string | undefined;
+      if (place.coverPhotoThumbKey) {
+        coverPhotoThumbUrl = await this.s3Service.createViewUrl(
+          place.coverPhotoThumbKey,
+        );
+      }
+      return {
+        ...item,
+        place: { ...place, coverPhotoUrl, coverPhotoThumbUrl },
+      };
     } catch {
-      return item;
+      return { ...item, place };
+    }
+  }
+
+  private needsPlaceCoverThumb(item: ItemEntity): boolean {
+    return Boolean(
+      item.catalogId &&
+        item.place?.coverPhotoKey &&
+        !item.place.coverPhotoThumbKey,
+    );
+  }
+
+  private queuePlaceCoverThumbBackfill(items: ItemEntity[]) {
+    const pending = items
+      .filter((item) => this.needsPlaceCoverThumb(item))
+      .filter((item) => !this.coverThumbIds.has(item.catalogId!))
+      .slice(0, LIST_COVER_THUMB_BACKFILL_LIMIT);
+
+    for (const item of pending) {
+      const catalogId = item.catalogId!;
+      this.coverThumbIds.add(catalogId);
+      void this.catalogService
+        .ensurePlaceCoverThumb(catalogId)
+        .catch((error) => {
+          this.logger.warn(
+            `Place cover thumb backfill failed for ${catalogId}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+        })
+        .finally(() => {
+          this.coverThumbIds.delete(catalogId);
+        });
     }
   }
 
@@ -533,108 +717,53 @@ export class ItemsService implements OnModuleInit {
   }
 
   /**
-   * Pull Google rating, cover photo, and AI tips once per place with a googlePlaceId.
+   * Pull Google rating, cover photo, and AI tips once per shared catalog place.
    */
   async ensurePlaceGoogleEnrichment(
-    userId: string,
+    _userId: string,
     item: ItemEntity,
   ): Promise<ItemEntity> {
     if (!this.needsPlaceGoogleEnrichment(item)) {
       return this.withResolvedPlaceCover(item);
     }
 
-    const googlePlaceId = item.location?.googlePlaceId;
-    if (!googlePlaceId) return item;
-
-    try {
-      const details =
-        await this.placesService.getGooglePlaceDetails(googlePlaceId);
-      if (!details) {
-        // Mark enriched so we don't retry forever on missing details.
-        return this.persistPlaceEnrichment(item, {
-          enrichedAt: new Date().toISOString(),
-        });
-      }
-
-      let coverPhotoKey: string | undefined;
-      const firstPhoto = details.photos?.[0];
-      if (firstPhoto?.name) {
-        const photo = await this.placesService.fetchPlacePhoto(
-          firstPhoto.name,
-          800,
-        );
-        if (photo) {
-          const extension = photo.contentType.includes('png')
-            ? 'png'
-            : photo.contentType.includes('webp')
-              ? 'webp'
-              : 'jpg';
-          coverPhotoKey = this.s3Service.placeCoverKey(item.ownerId, extension);
-          await this.s3Service.putObjectBuffer(
-            coverPhotoKey,
-            photo.buffer,
-            photo.contentType,
-          );
-        }
-      }
-
-      let tipsEn: string | undefined;
-      let tipsEs: string | undefined;
-      const reviewTexts = (details.reviews ?? [])
-        .map((review) => review.text.trim())
-        .filter(Boolean)
-        .slice(0, 5);
-      if (reviewTexts.length) {
-        try {
-          const tips = await this.openai.summarizePlaceReviews({
-            name: item.name,
-            reviews: reviewTexts,
-          });
-          tipsEn = tips.tipsEn;
-          tipsEs = tips.tipsEs;
-        } catch (error) {
-          this.logger.warn(
-            `Place tips skipped for ${item.id}: ${
-              error instanceof Error ? error.message : error
-            }`,
-          );
-        }
-      }
-
-      return this.persistPlaceEnrichment(item, {
-        googleRating: details.rating,
-        googleUserRatingCount: details.userRatingCount,
-        coverPhotoKey,
-        tipsEn,
-        tipsEs,
-        enrichedAt: new Date().toISOString(),
+    let catalogId = item.catalogId;
+    if (!catalogId && item.location) {
+      const catalog = await this.catalogService.ensurePlaceCatalog({
+        name: item.name,
+        nameEn: item.nameEn,
+        nameEs: item.nameEs,
+        category: item.category,
+        location: item.location,
+        place: item.place,
       });
-    } catch (error) {
-      this.logger.warn(
-        `Place Google enrichment skipped for ${item.id}: ${
-          error instanceof Error ? error.message : error
-        }`,
-      );
-      return item;
+      catalogId = String(catalog._id);
+      await this.itemModel
+        .updateOne(
+          { _id: item.id },
+          {
+            $set: {
+              catalogKind: CatalogKind.Place,
+              catalogId: catalog._id,
+            },
+            $unset: { place: 1 },
+          },
+        )
+        .exec();
+      item = {
+        ...item,
+        catalogKind: CatalogKind.Place,
+        catalogId,
+        place: undefined,
+      };
     }
-  }
 
-  private async persistPlaceEnrichment(
-    item: ItemEntity,
-    place: PlaceDetails,
-  ): Promise<ItemEntity> {
-    const merged: PlaceDetails = {
-      ...item.place,
-      ...place,
-    };
-    // Avoid writing ephemeral signed URL into Mongo.
-    delete merged.coverPhotoUrl;
+    if (!catalogId) return item;
 
-    await this.itemModel
-      .updateOne({ _id: item.id }, { $set: { place: merged } })
-      .exec();
-
-    return this.withResolvedPlaceCover({ ...item, place: merged });
+    await this.catalogService.ensurePlaceGoogleEnrichment(catalogId);
+    const doc = await this.itemModel.findById(item.id).exec();
+    if (!doc) return item;
+    return this.hydrateItem(mapItem(doc));
   }
 
   private needsPlaceLocalization(item: ItemEntity): boolean {

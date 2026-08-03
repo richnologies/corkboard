@@ -41,6 +41,11 @@ export enum PersonType {
   Friend = 'friend',
   Family = 'family',
   Pareja = 'pareja',
-  Colleague = 'colleague',
   Other = 'other',
+}
+
+/** Shared catalog kind linked from a user library Item */
+export enum CatalogKind {
+  Place = 'place',
+  Wine = 'wine',
 }

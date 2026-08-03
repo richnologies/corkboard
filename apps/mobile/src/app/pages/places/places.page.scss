@@ -53,12 +53,6 @@
     color: var(--cork-text, inherit);
   }
 
-  .visit-score {
-    font-weight: 700;
-    color: var(--ion-color-primary);
-    letter-spacing: 0.06em;
-  }
-
   .visit-notes {
     font-style: italic;
     display: -webkit-box;
@@ -172,7 +166,7 @@
 
   .preview-action {
     margin-top: 14px;
-    --box-shadow: 0 6px 20px rgba(37, 99, 235, 0.22);
+    --box-shadow: 0 6px 20px rgba(107, 29, 42, 0.22);
   }
 }
 

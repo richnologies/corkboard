@@ -44,10 +44,9 @@ import {
   calendarOutline,
   addCircleOutline,
   cameraOutline,
+  cloudOfflineOutline,
   peopleOutline,
   pencilOutline,
-  star,
-  starOutline,
   trashOutline,
   wineOutline,
 } from 'ionicons/icons';
@@ -83,7 +82,8 @@ import {
   isImageFile,
   prepareImageFile,
 } from '../../shared/utils/image-resize';
-import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
+import { VisitRatingFaceComponent } from '../../shared/components/visit-rating-face.component';
+import { VISIT_FACE_OPTIONS, VisitFaceScore, clampVisitStars } from '../../shared/visit-stars';
 
 addIcons({
   add,
@@ -93,10 +93,9 @@ addIcons({
   calendarOutline,
   addCircleOutline,
   cameraOutline,
+  cloudOfflineOutline,
   peopleOutline,
   pencilOutline,
-  star,
-  starOutline,
   trashOutline,
   wineOutline,
 });
@@ -161,6 +160,7 @@ type VisitPhotoEntry = VisitPhotoExisting | VisitPhotoNew;
     PersonPickerComponent,
     WinePickerComponent,
     PhotoLightboxComponent,
+    VisitRatingFaceComponent,
   ],
   templateUrl: './item-detail.page.html',
   styleUrl: './item-detail.page.scss',
@@ -182,6 +182,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
   readonly history = signal<ItemHistory | null>(null);
   readonly loading = signal(true);
+  readonly loadError = signal(false);
   readonly visitModalOpen = signal(false);
   readonly savingVisit = signal(false);
   readonly deletingVisit = signal(false);
@@ -207,7 +208,8 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     wouldReturn: [true],
   });
 
-  readonly starOptions = [1, 2, 3, 4, 5] as const;
+  readonly faceOptions = VISIT_FACE_OPTIONS;
+  readonly selectedFace = signal<VisitFaceScore>(4);
 
   private itemId: string | null = null;
 
@@ -227,6 +229,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     this.itemsService.history(id).subscribe({
       next: (h) => {
         this.history.set(h);
+        this.loadError.set(false);
         this.defaultHref.set(
           isWineCategory(h.item.category) ? '/tabs/wines' : '/tabs/places',
         );
@@ -235,7 +238,12 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         this.maybeEnrichWine(h.item.id, h.item.wine);
         this.maybeOpenLogVisitFromQuery();
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        if (!this.history()) {
+          this.loadError.set(true);
+        }
+      },
     });
   }
 
@@ -407,11 +415,18 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     return !!this.itemId && exp.itemId !== this.itemId;
   }
 
-  openWine(wineId: string) {
+  onVisitClick(exp: Experience) {
+    if (!this.canEditVisit(exp)) return;
+    this.openEditVisitModal(exp);
+  }
+
+  openWine(wineId: string, event?: Event) {
+    event?.stopPropagation();
     this.router.navigate(['/item', wineId]);
   }
 
-  openPlace(placeId: string) {
+  openPlace(placeId: string, event?: Event) {
+    event?.stopPropagation();
     this.router.navigate(['/item', placeId]);
   }
 
@@ -487,9 +502,11 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
     this.ensurePhotosLoaded(exp.photos ?? []);
 
+    const overall = clampVisitStars(exp.rating?.overall) ?? 4;
+    this.selectedFace.set(overall);
     this.visitForm.reset({
       visitedAt: exp.visitedAt.slice(0, 10),
-      overall: exp.rating?.overall ?? 4,
+      overall,
       notes: exp.notes ?? '',
       wouldReturn: exp.wouldReturn ?? true,
     });
@@ -658,7 +675,8 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     return this.photoUrlService.url(photo.thumbKey ?? photo.key);
   }
 
-  openExperiencePhotoViewer(photos: ExperiencePhoto[], index: number) {
+  openExperiencePhotoViewer(photos: ExperiencePhoto[], index: number, event?: Event) {
+    event?.stopPropagation();
     this.openLightbox(
       photos.map((photo) => ({
         key: photo.key,
@@ -888,21 +906,15 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     return this.i18n.t('common.dash');
   }
 
-  setVisitStars(stars: number) {
+  setVisitStars(stars: VisitFaceScore) {
+    this.selectedFace.set(stars);
     this.visitForm.controls.overall.setValue(stars);
-  }
-
-  starsText(value: number | null | undefined): string {
-    return visitStarsText(value);
-  }
-
-  starsLabel(value: number | null | undefined): string {
-    return visitStarsLabel(value);
   }
 
   private resetVisitForm() {
     this.revokeNewPhotoPreviews();
     this.visitPhotoEntries.set([]);
+    this.selectedFace.set(4);
     this.visitForm.reset({
       visitedAt: new Date().toISOString().slice(0, 10),
       overall: 4,

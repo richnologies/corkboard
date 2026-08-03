@@ -1,4 +1,5 @@
 import {
+  CatalogKind,
   ExperienceVisibility,
   ItemCategory,
   ItemStatus,
@@ -35,8 +36,12 @@ export interface PlaceDetails {
   googleUserRatingCount?: number;
   /** S3 object key for the cached cover photo */
   coverPhotoKey?: string;
+  /** S3 object key for the small list thumbnail */
+  coverPhotoThumbKey?: string;
   /** Signed S3 URL filled at read time */
   coverPhotoUrl?: string;
+  /** Signed S3 URL for the list thumbnail, filled at read time */
+  coverPhotoThumbUrl?: string;
   tipsEn?: string;
   tipsEs?: string;
   /** ISO timestamp; once set, enrichment is not re-run */
@@ -209,6 +214,34 @@ export interface LatestVisitSummary {
   notes?: string;
 }
 
+/** Shared Google/OSM place catalog row (not owned by a user). */
+export interface CatalogPlace {
+  id: string;
+  /** Google Place ID or `osm:{lat},{lon}` */
+  externalId: string;
+  name: string;
+  nameEn?: string;
+  nameEs?: string;
+  category: ItemCategory;
+  location: Location;
+  place?: PlaceDetails;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Shared Vivino (or local) wine catalog row. */
+export interface CatalogWine {
+  id: string;
+  /** vivinoVintageId, vivinoWineId, or `local:{slug}` */
+  externalId: string;
+  name: string;
+  nameEn?: string;
+  nameEs?: string;
+  wine: WineDetails;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Item {
   id: string;
   ownerId: string;
@@ -219,9 +252,18 @@ export interface Item {
   category: ItemCategory;
   status: ItemStatus;
   rejectionReason?: string;
+  /** Shared catalog link */
+  catalogKind?: CatalogKind;
+  catalogId?: string;
+  /**
+   * Catalog fields projected onto the item for clients.
+   * Prefer reading via catalogId; these are filled at read time from catalog.
+   */
   location?: Location;
   place?: PlaceDetails;
   wine?: WineDetails;
+  /** Optional personal notes on the library entry */
+  notes?: string;
   links: string[];
   photoKeys: string[];
   tags: string[];
@@ -247,6 +289,9 @@ export interface ExperienceItemRef {
 export interface Experience {
   id: string;
   itemId: string;
+  /** Denormalized shared catalog id for cross-user place/wine queries */
+  catalogId?: string;
+  catalogKind?: CatalogKind;
   authorId: string;
   visibility: ExperienceVisibility;
   /** Malviviendo users who joined this visit — can view even on private experiences */
@@ -272,11 +317,12 @@ export interface Experience {
   wines?: ExperienceItemRef[];
 }
 
-/** Visit row for the calendar view (place name denormalized for display). */
+/** Visit row for the calendar view (item name/category denormalized for display). */
 export interface ExperienceCalendarEntry {
   id: string;
   itemId: string;
   itemName: string;
+  itemCategory: ItemCategory;
   visitedAt: string;
   rating?: StructuredRating;
   notes?: string;
@@ -299,6 +345,8 @@ export interface UserProfile {
   id: string;
   email: string;
   displayName: string;
+  /** ISO timestamp when the user finished or skipped first-run onboarding */
+  onboardingCompletedAt?: string;
   createdAt: string;
 }
 

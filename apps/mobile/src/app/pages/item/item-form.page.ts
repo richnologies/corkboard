@@ -123,6 +123,7 @@ export class ItemFormPage implements OnInit {
   private readonly winesService = inject(WinesService);
   private readonly mediaService = inject(MediaService);
   private readonly i18n = inject(I18nService);
+  private fromOnboarding = false;
 
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -238,13 +239,20 @@ export class ItemFormPage implements OnInit {
     });
 
     this.itemId = this.route.snapshot.paramMap.get('id');
+    this.fromOnboarding =
+      this.route.snapshot.queryParamMap.get('onboarding') === '1';
     const queryCategory = this.route.snapshot.queryParamMap.get('category');
-    if (
-      (!this.itemId || this.itemId === 'new') &&
-      queryCategory === ItemCategory.Wine
-    ) {
-      this.form.patchValue({ category: ItemCategory.Wine });
-      this.syncFormMode(ItemCategory.Wine);
+    if (!this.itemId || this.itemId === 'new') {
+      if (queryCategory === ItemCategory.Wine) {
+        this.form.patchValue({ category: ItemCategory.Wine });
+        this.syncFormMode(ItemCategory.Wine);
+      } else if (
+        queryCategory &&
+        Object.values(ItemCategory).includes(queryCategory as ItemCategory)
+      ) {
+        this.form.patchValue({ category: queryCategory as ItemCategory });
+        this.syncFormMode(queryCategory as ItemCategory);
+      }
     }
 
     if (this.itemId && this.itemId !== 'new') {
@@ -820,7 +828,13 @@ export class ItemFormPage implements OnInit {
     req.subscribe({
       next: (item) => {
         this.saving.set(false);
-        this.router.navigate(['/item', item.id]);
+        if (this.fromOnboarding) {
+          void this.router.navigate(['/tabs/discover'], {
+            queryParams: { onboarding: '1' },
+          });
+          return;
+        }
+        void this.router.navigate(['/item', item.id]);
       },
       error: () => this.saving.set(false),
     });

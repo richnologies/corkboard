@@ -1,7 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, Subject, tap } from 'rxjs';
 import { ApiService } from './api.service';
-import { Item, ItemHistory, Experience, ItemCategory, ItemStatus, SourceType, ExperienceVisibility } from '@org/domain';
+import {
+  CatalogKind,
+  Item,
+  ItemHistory,
+  Experience,
+  ItemCategory,
+  ItemStatus,
+  SourceType,
+  ExperienceVisibility,
+} from '@org/domain';
 
 export interface ItemFilters {
   status?: ItemStatus;
@@ -13,6 +22,7 @@ export interface ItemFilters {
   q?: string;
 }
 
+/** Library create payload; API ensures shared catalog and returns catalog fields projected on Item. */
 export interface CreateItemPayload {
   name: string;
   nameEn?: string;
@@ -20,6 +30,10 @@ export interface CreateItemPayload {
   category: ItemCategory;
   status?: ItemStatus;
   rejectionReason?: string;
+  notes?: string;
+  /** Optional when linking an existing catalog row (advanced / future). */
+  catalogKind?: CatalogKind;
+  catalogId?: string;
   location?: {
     address?: string;
     addressEn?: string;

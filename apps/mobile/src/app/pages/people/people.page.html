@@ -1,5 +1,8 @@
 <ion-header>
   <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tabs/profile" />
+    </ion-buttons>
     <ion-title class="brand-title">{{ 'people.title' | translate }}</ion-title>
   </ion-toolbar>
   <ion-toolbar class="search-toolbar">
@@ -14,9 +17,19 @@
 </ion-header>
 
 <ion-content class="page-shell">
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content />
+  </ion-refresher>
+
   <p class="intro">{{ 'people.intro' | translate }}</p>
 
   <div class="filter-bar">
+    <ion-chip
+      [color]="!activeType() ? 'primary' : undefined"
+      (click)="setType(undefined)"
+    >
+      {{ 'common.all' | translate }}
+    </ion-chip>
     @for (type of personTypes; track type) {
       <ion-chip
         [color]="activeType() === type ? 'primary' : undefined"
@@ -27,8 +40,19 @@
     }
   </div>
 
+  @if (refreshError() && people().length) {
+    <p class="refresh-banner">{{ 'common.refreshFailed' | translate }}</p>
+  }
+
   @if (loading()) {
     <div class="loading-center"><ion-spinner /></div>
+  } @else if (loadError()) {
+    <div class="empty-state error-state">
+      <ion-icon name="cloud-offline-outline" />
+      <h3>{{ 'common.loadFailedTitle' | translate }}</h3>
+      <p>{{ 'common.loadFailedBody' | translate }}</p>
+      <ion-button (click)="retryLoad()">{{ 'common.retry' | translate }}</ion-button>
+    </div>
   } @else if (!filteredPeople().length) {
     <div class="empty-state">
       <ion-icon name="people-outline" />
@@ -53,7 +77,11 @@
             </span>
           </ion-item>
           <ion-item-options side="end">
-            <ion-item-option color="danger" (click)="confirmDeletePerson(person)">
+            <ion-item-option
+              color="danger"
+              (click)="confirmDeletePerson(person)"
+              [attr.aria-label]="'people.deletePerson' | translate"
+            >
               <ion-icon slot="icon-only" name="trash-outline" />
             </ion-item-option>
           </ion-item-options>
@@ -63,7 +91,10 @@
   }
 
   <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-    <ion-fab-button (click)="openCreate()">
+    <ion-fab-button
+      (click)="openCreate()"
+      [attr.aria-label]="'people.addFirst' | translate"
+    >
       <ion-icon name="add" />
     </ion-fab-button>
   </ion-fab>
@@ -172,10 +203,17 @@
                         <ion-item button class="activity-item" (click)="openItem(visit.itemId)">
                           <ion-label>
                             <h4>{{ visit.itemName }}</h4>
-                            <p>
-                              {{ visit.visitedAt | date: 'mediumDate' }}
-                              @if (visitRating(visit); as rating) {
-                                · {{ rating }}
+                            <p class="activity-meta">
+                              <span>{{ visit.visitedAt | date: 'mediumDate' }}</span>
+                              @if (visit.rating?.overall != null) {
+                                <span
+                                  class="visit-rating-face visit-rating-face--compact"
+                                  [attr.data-level]="visit.rating!.overall"
+                                  [attr.aria-label]="('item.ratingFace' + visit.rating!.overall) | translate"
+                                >
+                                  <span class="visit-rating-face__emoji" aria-hidden="true">{{ faceFor(visit.rating!.overall) }}</span>
+                                  <span class="visit-rating-face__label">{{ ('item.ratingFace' + visit.rating!.overall) | translate }}</span>
+                                </span>
                               }
                             </p>
                           </ion-label>

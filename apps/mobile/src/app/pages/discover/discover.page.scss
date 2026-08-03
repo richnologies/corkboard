@@ -6,6 +6,25 @@
   --padding-bottom: 16px;
 }
 
+.onboarding-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: var(--cork-radius-md);
+  background: var(--cork-primary-soft);
+  border: 1px solid var(--cork-border);
+
+  p {
+    margin: 0;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    color: var(--cork-ink);
+  }
+}
+
 .history-menu {
   --background: var(--cork-cream);
 }
@@ -155,9 +174,9 @@
 }
 
 .chat-bubble-error {
-  border-color: rgba(235, 68, 90, 0.35);
-  background: #fff5f5;
-  color: #b42318;
+  border-color: color-mix(in srgb, var(--ion-color-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--ion-color-danger) 12%, var(--cork-surface));
+  color: var(--ion-color-danger-shade, var(--ion-color-danger));
 }
 
 .chat-bubble-typing {

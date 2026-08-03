@@ -19,7 +19,8 @@ export function mapPlaceDetails(
     googleRating: place.googleRating,
     googleUserRatingCount: place.googleUserRatingCount,
     coverPhotoKey: place.coverPhotoKey,
-    // coverPhotoUrl is filled at read time via signed S3 URL
+    coverPhotoThumbKey: place.coverPhotoThumbKey,
+    // coverPhotoUrl / coverPhotoThumbUrl are filled at read time via signed S3 URL
     tipsEn: place.tipsEn,
     tipsEs: place.tipsEs,
     enrichedAt: place.enrichedAt,
@@ -72,9 +73,12 @@ export function mapItem(doc: ItemDocument): Item {
     nameEs: doc.nameEs,
     category: doc.category,
     status: doc.status,
+    catalogKind: doc.catalogKind,
+    catalogId: doc.catalogId ? String(doc.catalogId) : undefined,
     location: doc.location ?? undefined,
     place: mapPlaceDetails(doc.place),
     wine: mapWineDetails(doc.wine),
+    notes: doc.notes,
     links: doc.links ?? [],
     photoKeys: doc.photoKeys ?? [],
     tags: doc.tags ?? [],

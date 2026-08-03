@@ -101,7 +101,15 @@ class PlaceDetailsDto {
 
   @IsOptional()
   @IsString()
+  coverPhotoThumbKey?: string;
+
+  @IsOptional()
+  @IsString()
   coverPhotoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  coverPhotoThumbUrl?: string;
 
   @IsOptional()
   @IsString()

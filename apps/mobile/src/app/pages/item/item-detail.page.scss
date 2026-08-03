@@ -5,17 +5,28 @@
 }
 
 .detail-header {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+
+  .detail-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
 
   .category {
     color: var(--cork-muted);
-    margin: 8px 0 4px;
+    margin: 0;
+    font-size: 13px;
     font-weight: 500;
   }
 
   .location {
     margin: 0;
-    font-size: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--cork-text, inherit);
   }
 
   .rejection-reason {
@@ -25,6 +36,46 @@
     font-style: italic;
     line-height: 1.4;
   }
+}
+
+.place-media {
+  margin: 0 0 12px;
+}
+
+.place-tips {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--cork-border);
+  border-radius: 12px;
+  background: var(--cork-surface);
+
+  summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cork-muted);
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  &[open] summary {
+    margin-bottom: 8px;
+  }
+}
+
+.place-map-block {
+  margin: 0 0 12px;
+}
+
+.wine-summary-card {
+  margin: 0 0 12px;
+}
+
+.secondary-card {
+  margin-top: 16px;
 }
 
 h3 {
@@ -53,52 +104,75 @@ h3 {
 .place-hero {
   display: block;
   width: 100%;
-  max-height: 220px;
+  height: 160px;
   object-fit: cover;
-  border-radius: 12px;
-  margin: 0 0 14px;
+  border-radius: 14px;
+  margin: 0;
   border: 1px solid var(--cork-border);
   background: var(--cork-surface);
 }
 
 .google-tips {
   white-space: pre-line;
-  margin: 0 0 8px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .google-attribution {
-  margin: 0;
-  font-size: 12px;
+  margin: 6px 0 0;
+  font-size: 11px;
   color: var(--cork-muted);
 }
 
 .google-rating {
+  margin: 4px 0 0;
   color: var(--cork-muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .tags {
-  margin: 16px 0;
+  margin: 0 0 4px;
   display: flex;
   flex-wrap: wrap;
+  gap: 4px;
 }
 
 .map-links {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 16px 0;
+  gap: 6px;
+  margin: 8px 0 0;
+
+  .map-link-primary {
+    width: 100%;
+  }
+
+  .map-links-secondary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
 
   ion-button {
     margin: 0;
-    --border-radius: 14px;
-    font-size: 14px;
+    --border-radius: 12px;
+    --padding-start: 10px;
+    --padding-end: 10px;
+    min-height: 38px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+
+    ion-icon {
+      font-size: 15px;
+    }
   }
 }
 
 .section-title {
   font-family: 'Fraunces', Georgia, serif;
-  margin: 24px 0 12px;
+  margin: 16px 0 10px;
   letter-spacing: -0.02em;
 }
 
@@ -118,8 +192,8 @@ h3 {
 }
 
 app-osm-map {
-  margin-bottom: 12px;
-  border-radius: 16px;
+  margin-bottom: 0;
+  border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--cork-border);
 }
@@ -127,15 +201,15 @@ app-osm-map {
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .stat {
   background: var(--cork-surface);
   border: 1px solid var(--cork-border);
   border-radius: 14px;
-  padding: 14px 12px;
+  padding: 10px 8px;
   text-align: center;
 
   .value {
@@ -179,6 +253,15 @@ app-osm-map {
   border: 1px solid var(--cork-border);
   border-radius: var(--cork-radius-lg);
   box-shadow: var(--cork-shadow);
+
+  &.editable {
+    cursor: pointer;
+  }
+}
+
+.experience-item.ion-activated .experience-body.editable,
+.experience-item:active .experience-body.editable {
+  background: color-mix(in srgb, var(--cork-surface) 88%, var(--ion-color-primary));
 }
 
 .experience-header {
@@ -207,35 +290,93 @@ app-osm-map {
   }
 }
 
-.rating-stars {
-  font-size: 18px;
-  letter-spacing: 0.08em;
-  color: var(--ion-color-primary);
+.rating-faces {
   margin-bottom: 10px;
-  line-height: 1.2;
 }
 
-.star-picker {
+.stat-rating {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  justify-content: center;
+  margin: 0 auto 4px;
+}
+
+.face-picker {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 6px;
   margin: 0 0 16px;
   padding: 4px 0;
 
-  .star-btn {
+  .face-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     margin: 0;
-    --padding-start: 6px;
-    --padding-end: 6px;
-    min-width: 44px;
-    min-height: 44px;
+    padding: 10px 2px;
+    min-width: 0;
+    min-height: 84px;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    cursor: pointer;
+    opacity: 0.42;
+    transform: scale(0.94);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease;
 
-    ion-icon {
-      font-size: 28px;
-      color: var(--cork-muted);
+    .face-emoji {
+      font-size: 40px;
+      line-height: 1;
     }
 
-    &.selected ion-icon {
-      color: var(--ion-color-primary);
+    .face-label {
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: 0.01em;
+    }
+
+    &[data-level='1'] {
+      background: #fee2e2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
+    &[data-level='2'] {
+      background: #ffedd5;
+      border-color: #fed7aa;
+      color: #9a3412;
+    }
+
+    &[data-level='3'] {
+      background: #f5f5f4;
+      border-color: #e7e5e4;
+      color: #44403c;
+    }
+
+    &[data-level='4'] {
+      background: #dcfce7;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    &[data-level='5'] {
+      background: #ccfbf1;
+      border-color: #99f6e4;
+      color: #115e59;
+    }
+
+    &.selected {
+      opacity: 1;
+      transform: scale(1.06);
+      border-color: currentColor;
+      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
     }
   }
 }
@@ -497,7 +638,7 @@ app-osm-map {
 
 .save-visit-btn {
   margin-top: 0;
-  --box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+  --box-shadow: 0 8px 24px rgba(107, 29, 42, 0.22);
 }
 
 .delete-visit-btn {

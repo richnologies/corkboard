@@ -129,8 +129,8 @@ export class MapPickerComponent implements AfterViewInit, OnDestroy {
     } else {
       this.marker = L.circleMarker([lat, lng], {
         radius: 9,
-        color: '#2563eb',
-        fillColor: '#3b82f6',
+        color: '#6b1d2a',
+        fillColor: '#8b2e3b',
         fillOpacity: 1,
         weight: 2,
       }).addTo(this.map);

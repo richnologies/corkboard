@@ -35,4 +35,14 @@ export class UsersService {
       .findByIdAndUpdate(id, { passwordHash }, { new: true })
       .exec();
   }
+
+  async completeOnboarding(id: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findByIdAndUpdate(
+        id,
+        { onboardingCompletedAt: new Date() },
+        { new: true },
+      )
+      .exec();
+  }
 }

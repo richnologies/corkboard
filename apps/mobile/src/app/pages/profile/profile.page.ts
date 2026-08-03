@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
@@ -7,8 +7,10 @@ import {
   ValidationErrors,
   Validators,
 } from '@angular/forms';
+import { ViewWillEnter } from '@ionic/angular/common';
 import {
   IonButton,
+  IonButtons,
   IonContent,
   IonHeader,
   IonIcon,
@@ -16,6 +18,7 @@ import {
   IonItem,
   IonLabel,
   IonList,
+  IonModal,
   IonSelect,
   IonSelectOption,
   IonSpinner,
@@ -33,6 +36,7 @@ import {
 } from 'ionicons/icons';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
+import { PeopleService } from '../../core/services/people.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { AppLocale, isAppLocale } from '../../core/i18n/locale';
@@ -62,6 +66,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     IonHeader,
     IonToolbar,
     IonTitle,
+    IonButtons,
     IonContent,
     IonList,
     IonItem,
@@ -73,19 +78,24 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
     IonInput,
     IonText,
     IonSpinner,
+    IonModal,
   ],
   templateUrl: './profile.page.html',
   styleUrl: './profile.page.scss',
 })
-export class ProfilePage {
+export class ProfilePage implements OnInit, ViewWillEnter {
   readonly auth = inject(AuthService);
   readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
+  private readonly peopleService = inject(PeopleService);
   private readonly fb = inject(FormBuilder);
 
+  readonly peopleCount = signal(0);
+  readonly passwordModalOpen = signal(false);
   readonly passwordLoading = signal(false);
   readonly passwordError = signal('');
   readonly passwordSuccess = signal(false);
+  private passwordSuccessTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly passwordForm = this.fb.nonNullable.group(
     {
@@ -96,6 +106,20 @@ export class ProfilePage {
     { validators: passwordsMatch },
   );
 
+  ngOnInit() {
+    this.loadPeopleCount();
+  }
+
+  ionViewWillEnter() {
+    this.loadPeopleCount();
+  }
+
+  peopleCountLabel(): string {
+    const count = this.peopleCount();
+    if (count === 1) return this.i18n.t('profile.peopleCountOne');
+    return this.i18n.t('profile.peopleCount', { count: String(count) });
+  }
+
   openPeople() {
     this.router.navigate(['/tabs/people']);
   }
@@ -105,6 +129,23 @@ export class ProfilePage {
     if (value && isAppLocale(value)) {
       this.i18n.setLocale(value as AppLocale);
     }
+  }
+
+  openPasswordModal() {
+    this.clearPasswordSuccessTimer();
+    this.passwordError.set('');
+    this.passwordSuccess.set(false);
+    this.passwordForm.reset();
+    this.passwordModalOpen.set(true);
+  }
+
+  closePasswordModal() {
+    this.clearPasswordSuccessTimer();
+    this.passwordModalOpen.set(false);
+    this.passwordLoading.set(false);
+    this.passwordError.set('');
+    this.passwordSuccess.set(false);
+    this.passwordForm.reset();
   }
 
   changePassword() {
@@ -131,6 +172,8 @@ export class ProfilePage {
         this.passwordLoading.set(false);
         this.passwordSuccess.set(true);
         this.passwordForm.reset();
+        this.clearPasswordSuccessTimer();
+        this.passwordSuccessTimer = setTimeout(() => this.closePasswordModal(), 1200);
       },
       error: (err) => {
         this.passwordLoading.set(false);
@@ -152,7 +195,23 @@ export class ProfilePage {
     });
   }
 
+  private clearPasswordSuccessTimer() {
+    if (this.passwordSuccessTimer) {
+      clearTimeout(this.passwordSuccessTimer);
+      this.passwordSuccessTimer = null;
+    }
+  }
+
   logout() {
     this.auth.logout();
+  }
+
+  private loadPeopleCount() {
+    this.peopleService.list().subscribe({
+      next: (people) => this.peopleCount.set(people.length),
+      error: () => {
+        // Keep last known count on soft failure.
+      },
+    });
   }
 }

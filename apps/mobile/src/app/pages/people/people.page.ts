@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
 import { AlertController } from '@ionic/angular/standalone';
 import {
+  IonBackButton,
   IonButton,
   IonButtons,
   IonChip,
@@ -22,6 +23,8 @@ import {
   IonLabel,
   IonList,
   IonModal,
+  IonRefresher,
+  IonRefresherContent,
   IonSearchbar,
   IonSelect,
   IonSelectOption,
@@ -30,14 +33,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { add, peopleOutline, trashOutline } from 'ionicons/icons';
+import { add, cloudOfflineOutline, peopleOutline, trashOutline } from 'ionicons/icons';
 import { ItemCategory, Person, PersonActivity, PersonType, isWineCategory } from '@org/domain';
 import { PeopleService } from '../../core/services/people.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { visitStarsLabel } from '../../shared/visit-stars';
+import { visitStarsText } from '../../shared/visit-stars';
 
-addIcons({ add, peopleOutline, trashOutline });
+addIcons({ add, cloudOfflineOutline, peopleOutline, trashOutline });
 
 @Component({
   selector: 'app-people',
@@ -50,6 +53,7 @@ addIcons({ add, peopleOutline, trashOutline });
     IonToolbar,
     IonTitle,
     IonButtons,
+    IonBackButton,
     IonContent,
     IonSearchbar,
     IonList,
@@ -69,6 +73,8 @@ addIcons({ add, peopleOutline, trashOutline });
     IonFab,
     IonFabButton,
     IonFooter,
+    IonRefresher,
+    IonRefresherContent,
   ],
   templateUrl: './people.page.html',
   styleUrl: './people.page.scss',
@@ -81,6 +87,8 @@ export class PeoplePage implements OnInit, ViewWillEnter {
   private readonly i18n = inject(I18nService);
 
   readonly loading = signal(true);
+  readonly loadError = signal(false);
+  readonly refreshError = signal(false);
   readonly saving = signal(false);
   readonly deleting = signal(false);
   readonly activityLoading = signal(false);
@@ -233,9 +241,8 @@ export class PeoplePage implements OnInit, ViewWillEnter {
     await alert.present();
   }
 
-  visitRating(entry: PersonActivity['visits'][number]): string | null {
-    const overall = entry.rating?.overall;
-    return visitStarsLabel(overall);
+  faceFor(value: number | null | undefined): string {
+    return visitStarsText(value);
   }
 
   private removePerson(person: Person) {
@@ -271,16 +278,38 @@ export class PeoplePage implements OnInit, ViewWillEnter {
     });
   }
 
-  private loadPeople() {
-    this.loading.set(true);
+  private loadPeople(options?: { target?: HTMLIonRefresherElement; silent?: boolean }) {
+    if (!options?.silent && !options?.target) {
+      this.loading.set(true);
+    }
     this.peopleService.list().subscribe({
       next: (people) => {
         this.people.set(people);
         this.applyFilter();
+        this.loadError.set(false);
+        this.refreshError.set(false);
         this.loading.set(false);
+        options?.target?.complete();
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        if (!this.people().length) {
+          this.loadError.set(true);
+          this.refreshError.set(false);
+        } else {
+          this.refreshError.set(true);
+        }
+        options?.target?.complete();
+      },
     });
+  }
+
+  retryLoad() {
+    this.loadPeople();
+  }
+
+  refresh(ev: CustomEvent) {
+    this.loadPeople({ target: ev.target as HTMLIonRefresherElement });
   }
 
   private applyFilter() {

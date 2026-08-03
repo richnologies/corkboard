@@ -62,6 +62,14 @@ export class AuthService {
     };
   }
 
+  async completeOnboarding(userId: string): Promise<UserProfile> {
+    const user = await this.usersService.completeOnboarding(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toProfile(user);
+  }
+
   async changePassword(
     userId: string,
     dto: ChangePasswordDto,
@@ -95,12 +103,16 @@ export class AuthService {
     id: string;
     email: string;
     displayName: string;
+    onboardingCompletedAt?: Date;
     createdAt?: Date;
   }): UserProfile {
     return {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      onboardingCompletedAt: user.onboardingCompletedAt
+        ? user.onboardingCompletedAt.toISOString()
+        : undefined,
       createdAt: (user.createdAt ?? new Date()).toISOString(),
     };
   }

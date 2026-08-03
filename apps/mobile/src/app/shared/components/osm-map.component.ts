@@ -8,6 +8,7 @@ import { osmEmbedUrl } from '../maps';
   template: `
     <iframe
       class="map-frame"
+      [style.height.px]="height()"
       [src]="embedUrl()"
       loading="lazy"
       referrerpolicy="no-referrer-when-downgrade"
@@ -35,6 +36,7 @@ export class OsmMapComponent {
 
   readonly latitude = input.required<number>();
   readonly longitude = input.required<number>();
+  readonly height = input(220);
 
   readonly embedUrl = computed(() =>
     this.sanitizer.bypassSecurityTrustResourceUrl(

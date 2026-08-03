@@ -1,6 +1,6 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
 import { MenuController, AlertController } from '@ionic/angular/standalone';
 import {
@@ -47,6 +47,7 @@ import { ConversationsService } from '../../core/services/conversations.service'
 import { SpeechInputService } from '../../core/services/speech-input.service';
 import { MediaService } from '../../core/services/media.service';
 import { PhotoUrlService } from '../../core/services/photo-url.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { ChatLinksPipe } from '../../shared/pipes/chat-links.pipe';
@@ -115,9 +116,12 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   private readonly media = inject(MediaService);
   private readonly photoUrls = inject(PhotoUrlService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly menu = inject(MenuController);
   private readonly alertCtrl = inject(AlertController);
+  readonly onboardingHint = signal(false);
 
   readonly messages = signal<ChatMessage[]>([]);
   readonly draft = signal('');
@@ -148,6 +152,27 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   ngOnInit() {
     this.loadConversations();
     void this.speech.detectSupport();
+    this.applyOnboardingSeed();
+  }
+
+  private applyOnboardingSeed() {
+    if (this.route.snapshot.queryParamMap.get('onboarding') !== '1') return;
+    this.onboardingHint.set(true);
+    this.useExample('chat.exampleNewVisit');
+    if (this.auth.needsOnboarding()) {
+      this.auth.completeOnboarding().subscribe({ error: () => undefined });
+    }
+    // Clear query so refresh doesn't re-seed forever.
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { onboarding: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  dismissOnboardingHint() {
+    this.onboardingHint.set(false);
   }
 
   ngOnDestroy() {
