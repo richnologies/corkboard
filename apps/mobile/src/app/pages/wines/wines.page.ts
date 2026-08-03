@@ -3,6 +3,7 @@ import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
+import { AlertController } from '@ionic/angular/standalone';
 import {
   IonButton,
   IonChip,
@@ -11,26 +12,31 @@ import {
   IonFabButton,
   IonHeader,
   IonIcon,
+  IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
+  IonList,
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
   IonSpinner,
   IonTitle,
   IonToolbar,
-  IonCard,
-  IonCardContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { add, calendarOutline, heart, wineOutline } from 'ionicons/icons';
+import { add, addCircleOutline, calendarOutline, heart, trashOutline, wineOutline } from 'ionicons/icons';
 import { ItemsService } from '../../core/services/items.service';
 import { TagsService } from '../../core/services/tags.service';
+import { AuthService } from '../../core/services/auth.service';
 import { Item, ItemCategory, ItemStatus, FAVORITE_TAG, hasFavoriteTag } from '@org/domain';
 import { categoryIcons } from '../../shared/labels';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { itemDisplayName, wineRegion } from '../../shared/localized';
+import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
 
-addIcons({ add, calendarOutline, heart, wineOutline });
+addIcons({ add, addCircleOutline, calendarOutline, heart, trashOutline, wineOutline });
 
 @Component({
   selector: 'app-wines',
@@ -50,9 +56,12 @@ addIcons({ add, calendarOutline, heart, wineOutline });
     IonRefresher,
     IonRefresherContent,
     IonSpinner,
-    IonCard,
-    IonCardContent,
     IonButton,
+    IonList,
+    IonItem,
+    IonItemSliding,
+    IonItemOptions,
+    IonItemOption,
     TranslatePipe,
   ],
   templateUrl: './wines.page.html',
@@ -61,6 +70,8 @@ addIcons({ add, calendarOutline, heart, wineOutline });
 export class WinesPage implements ViewWillEnter {
   private readonly itemsService = inject(ItemsService);
   private readonly tagsService = inject(TagsService);
+  private readonly auth = inject(AuthService);
+  private readonly alertCtrl = inject(AlertController);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly i18n = inject(I18nService);
@@ -133,6 +144,38 @@ export class WinesPage implements ViewWillEnter {
     this.router.navigate(['/item', id]);
   }
 
+  logVisit(item: Item) {
+    this.router.navigate(['/item', item.id], { queryParams: { logVisit: '1' } });
+  }
+
+  canDeleteItem(item: Item): boolean {
+    const userId = this.auth.user()?.id;
+    return !!userId && item.ownerId === userId;
+  }
+
+  async confirmDeleteItem(item: Item) {
+    if (!this.canDeleteItem(item)) return;
+    const alert = await this.alertCtrl.create({
+      header: this.i18n.t('item.deleteItemTitle', {
+        name: itemDisplayName(item, this.i18n.locale()),
+      }),
+      message: this.i18n.t('item.deleteItemConfirm'),
+      buttons: [
+        { text: this.i18n.t('common.cancel'), role: 'cancel' },
+        {
+          text: this.i18n.t('item.deleteWine'),
+          role: 'destructive',
+          handler: () => {
+            this.itemsService.remove(item.id).subscribe({
+              next: () => this.load({ silent: true }),
+            });
+          },
+        },
+      ],
+    });
+    await alert.present();
+  }
+
   addItem() {
     this.router.navigate(['/item/new'], {
       queryParams: { category: ItemCategory.Wine },
@@ -164,6 +207,14 @@ export class WinesPage implements ViewWillEnter {
   latestVisitScore(item: Item): number | null {
     const score = item.latestVisit?.rating?.overall;
     return score != null ? score : null;
+  }
+
+  starsText(value: number | null | undefined): string {
+    return visitStarsText(value);
+  }
+
+  starsLabel(value: number | null | undefined): string {
+    return visitStarsLabel(value);
   }
 
   latestVisitNotes(item: Item): string | null {

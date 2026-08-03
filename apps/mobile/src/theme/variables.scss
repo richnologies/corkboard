@@ -6,6 +6,11 @@
   --page-bottom-inset: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
   --fab-bottom-offset: calc(var(--page-bottom-inset) + 12px);
 
+  --cork-radius-sm: 10px;
+  --cork-radius-md: 14px;
+  --cork-radius-lg: 18px;
+  --cork-radius-pill: 999px;
+
   --cork-cream: #f0f4fa;
   --cork-surface: #ffffff;
   --cork-brown: #1e40af;
@@ -22,6 +27,31 @@
   --cork-primary-muted: #dbeafe;
   --cork-gradient-start: #eff6ff;
   --cork-gradient-end: #dbeafe;
+
+  --cork-status-wishlist-bg: #dbeafe;
+  --cork-status-wishlist-fg: #1d4ed8;
+  --cork-status-planned-bg: #e0f2fe;
+  --cork-status-planned-fg: #0369a1;
+  --cork-status-visited-bg: #e0e7ff;
+  --cork-status-visited-fg: #4338ca;
+  --cork-status-rejected-bg: #f1f5f9;
+  --cork-status-rejected-fg: #64748b;
+
+  --cork-favorite-bg: #ede9fe;
+  --cork-favorite-fg: #6d28d9;
+  --cork-favorite-border: #c4b5fd;
+  --cork-favorite-heart: #e11d48;
+
+  --cork-person-friend-bg: #dbeafe;
+  --cork-person-friend-fg: #1d4ed8;
+  --cork-person-family-bg: #fce7f3;
+  --cork-person-family-fg: #be185d;
+  --cork-person-pareja-bg: #fce7f3;
+  --cork-person-pareja-fg: #9d174d;
+  --cork-person-colleague-bg: #e0e7ff;
+  --cork-person-colleague-fg: #4338ca;
+  --cork-person-other-bg: #f1f5f9;
+  --cork-person-other-fg: #64748b;
 
   --ion-background-color: var(--cork-cream);
   --ion-text-color: var(--cork-ink);
@@ -63,6 +93,31 @@
     --cork-primary-muted: #1e3a8a;
     --cork-gradient-start: #0b1220;
     --cork-gradient-end: #111827;
+
+    --cork-status-wishlist-bg: #1e3a8a;
+    --cork-status-wishlist-fg: #93c5fd;
+    --cork-status-planned-bg: #0c4a6e;
+    --cork-status-planned-fg: #7dd3fc;
+    --cork-status-visited-bg: #312e81;
+    --cork-status-visited-fg: #a5b4fc;
+    --cork-status-rejected-bg: #1e293b;
+    --cork-status-rejected-fg: #94a3b8;
+
+    --cork-favorite-bg: #4c1d95;
+    --cork-favorite-fg: #c4b5fd;
+    --cork-favorite-border: #6d28d9;
+    --cork-favorite-heart: #fb7185;
+
+    --cork-person-friend-bg: #1e3a8a;
+    --cork-person-friend-fg: #93c5fd;
+    --cork-person-family-bg: #831843;
+    --cork-person-family-fg: #f9a8d4;
+    --cork-person-pareja-bg: #9d174d;
+    --cork-person-pareja-fg: #fbcfe8;
+    --cork-person-colleague-bg: #312e81;
+    --cork-person-colleague-fg: #a5b4fc;
+    --cork-person-other-bg: #1e293b;
+    --cork-person-other-fg: #94a3b8;
 
     --ion-background-color: var(--cork-cream);
     --ion-text-color: var(--cork-ink);

@@ -59,6 +59,30 @@ export class LocationEmbed {
 }
 
 @Schema({ _id: false })
+export class PlaceDetailsEmbed {
+  @Prop()
+  googleRating?: number;
+
+  @Prop()
+  googleUserRatingCount?: number;
+
+  @Prop()
+  coverPhotoKey?: string;
+
+  @Prop()
+  coverPhotoUrl?: string;
+
+  @Prop()
+  tipsEn?: string;
+
+  @Prop()
+  tipsEs?: string;
+
+  @Prop()
+  enrichedAt?: string;
+}
+
+@Schema({ _id: false })
 export class WineDetailsEmbed {
   @Prop()
   vivinoWineId?: string;
@@ -193,6 +217,9 @@ export class Item {
 
   @Prop({ type: LocationEmbed })
   location?: LocationEmbed;
+
+  @Prop({ type: PlaceDetailsEmbed })
+  place?: PlaceDetailsEmbed;
 
   @Prop({ type: WineDetailsEmbed })
   wine?: WineDetailsEmbed;

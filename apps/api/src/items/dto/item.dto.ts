@@ -83,6 +83,39 @@ class LocationDto {
   googleMapsUrl?: string;
 }
 
+class PlaceDetailsDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(5)
+  googleRating?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  googleUserRatingCount?: number;
+
+  @IsOptional()
+  @IsString()
+  coverPhotoKey?: string;
+
+  @IsOptional()
+  @IsString()
+  coverPhotoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  tipsEn?: string;
+
+  @IsOptional()
+  @IsString()
+  tipsEs?: string;
+
+  @IsOptional()
+  @IsString()
+  enrichedAt?: string;
+}
+
 class WineDetailsDto {
   @IsOptional()
   @IsString()
@@ -259,6 +292,11 @@ export class CreateItemDto {
 
   @IsOptional()
   @ValidateNested()
+  @Type(() => PlaceDetailsDto)
+  place?: PlaceDetailsDto;
+
+  @IsOptional()
+  @ValidateNested()
   @Type(() => WineDetailsDto)
   wine?: WineDetailsDto;
 
@@ -312,6 +350,11 @@ export class UpdateItemDto {
   @ValidateNested()
   @Type(() => LocationDto)
   location?: LocationDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PlaceDetailsDto)
+  place?: PlaceDetailsDto;
 
   @IsOptional()
   @ValidateNested()

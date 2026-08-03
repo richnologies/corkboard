@@ -19,30 +19,35 @@ import {
   IonCard,
   IonCardContent,
   IonItem,
-  IonLabel,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
   IonList,
   IonModal,
   IonInput,
   IonTextarea,
   IonToggle,
-  IonRange,
   IonSelect,
   IonSelectOption,
   IonReorder,
   IonReorderGroup,
+  IonFab,
+  IonFabButton,
 } from '@ionic/angular/standalone';
 import type { ItemReorderEventDetail } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import {
+  add,
   createOutline,
   mapOutline,
   eyeOutline,
   calendarOutline,
   addCircleOutline,
   cameraOutline,
-  closeCircleOutline,
   peopleOutline,
   pencilOutline,
+  star,
+  starOutline,
   trashOutline,
   wineOutline,
 } from 'ionicons/icons';
@@ -78,17 +83,20 @@ import {
   isImageFile,
   prepareImageFile,
 } from '../../shared/utils/image-resize';
+import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
 
 addIcons({
+  add,
   createOutline,
   mapOutline,
   eyeOutline,
   calendarOutline,
   addCircleOutline,
   cameraOutline,
-  closeCircleOutline,
   peopleOutline,
   pencilOutline,
+  star,
+  starOutline,
   trashOutline,
   wineOutline,
 });
@@ -137,16 +145,19 @@ type VisitPhotoEntry = VisitPhotoExisting | VisitPhotoNew;
     IonCardContent,
     IonList,
     IonItem,
-    IonLabel,
+    IonItemSliding,
+    IonItemOptions,
+    IonItemOption,
     IonModal,
     IonInput,
     IonTextarea,
     IonToggle,
-    IonRange,
     IonSelect,
     IonSelectOption,
     IonReorder,
     IonReorderGroup,
+    IonFab,
+    IonFabButton,
     PersonPickerComponent,
     WinePickerComponent,
     PhotoLightboxComponent,
@@ -191,14 +202,12 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
   readonly visitForm = this.fb.nonNullable.group({
     visitedAt: [new Date().toISOString().slice(0, 10), Validators.required],
-    food: [8],
-    service: [8],
-    atmosphere: [8],
-    valueForMoney: [8],
-    overall: [8],
+    overall: [4, [Validators.required, Validators.min(1), Validators.max(5)]],
     notes: [''],
     wouldReturn: [true],
   });
+
+  readonly starOptions = [1, 2, 3, 4, 5] as const;
 
   private itemId: string | null = null;
 
@@ -224,8 +233,20 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
         this.loadPhotoUrls(h.experiences);
         this.loading.set(false);
         this.maybeEnrichWine(h.item.id, h.item.wine);
+        this.maybeOpenLogVisitFromQuery();
       },
       error: () => this.loading.set(false),
+    });
+  }
+
+  private maybeOpenLogVisitFromQuery() {
+    if (this.route.snapshot.queryParamMap.get('logVisit') !== '1') return;
+    this.openVisitModal();
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { logVisit: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 
@@ -309,6 +330,68 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
   deleteItemLabelKey(): string {
     return this.isWineItem() ? 'item.deleteWine' : 'item.deletePlace';
+  }
+
+  historyTitleKey(): string {
+    return this.isWineItem() ? 'item.yourTastings' : 'item.yourHistory';
+  }
+
+  visitsCountLabelKey(): string {
+    return this.isWineItem() ? 'item.tastings' : 'item.visits';
+  }
+
+  returnQuestionKey(): string {
+    return this.isWineItem() ? 'item.returnQuestionWine' : 'item.returnQuestion';
+  }
+
+  wouldReturnKey(): string {
+    return this.isWineItem() ? 'item.wouldBuyAgain' : 'item.wouldReturn';
+  }
+
+  logVisitKey(): string {
+    return this.isWineItem() ? 'item.logTasting' : 'item.logVisit';
+  }
+
+  visitModalTitleKey(): string {
+    if (this.isEditingVisit()) {
+      return this.isWineItem() ? 'item.editTastingTitle' : 'item.editVisitTitle';
+    }
+    return this.isWineItem() ? 'item.logTastingTitle' : 'item.logVisitTitle';
+  }
+
+  visitedWithKey(): string {
+    return this.isWineItem() ? 'item.tastedWith' : 'item.visitedWith';
+  }
+
+  companionsEmptyHintKey(): string {
+    return this.isWineItem() ? 'people.tastingEmptyHint' : 'people.visitEmptyHint';
+  }
+
+  visitVisibilityKey(): string {
+    return this.isWineItem() ? 'item.tastingVisibility' : 'item.visitVisibility';
+  }
+
+  saveVisitKey(): string {
+    if (this.isEditingVisit()) {
+      return this.isWineItem() ? 'item.saveTastingChanges' : 'item.saveVisitChanges';
+    }
+    return this.isWineItem() ? 'item.saveTasting' : 'item.saveVisit';
+  }
+
+  emptyVisitsKey(): string {
+    return this.isWineItem() ? 'item.noTastings' : 'item.noVisits';
+  }
+
+  deleteVisitLabelKey(): string {
+    return this.isWineItem() ? 'item.deleteTasting' : 'item.deleteVisit';
+  }
+
+  deleteVisitTitleKey(): string {
+    return this.isWineItem() ? 'item.deleteTastingTitle' : 'item.deleteVisitTitle';
+  }
+
+  deleteVisitConfirmKey(): string {
+    return this.isWineItem() ? 'item.deleteTastingConfirm' : 'item.deleteVisitConfirm';
   }
 
   showsWinePicker(): boolean {
@@ -406,11 +489,7 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
 
     this.visitForm.reset({
       visitedAt: exp.visitedAt.slice(0, 10),
-      food: exp.rating?.food ?? 8,
-      service: exp.rating?.service ?? 8,
-      atmosphere: exp.rating?.atmosphere ?? 8,
-      valueForMoney: exp.rating?.valueForMoney ?? 8,
-      overall: exp.rating?.overall ?? 8,
+      overall: exp.rating?.overall ?? 4,
       notes: exp.notes ?? '',
       wouldReturn: exp.wouldReturn ?? true,
     });
@@ -537,10 +616,6 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
       const payload: ExperiencePayload = {
         visitedAt: new Date(v.visitedAt).toISOString(),
         rating: {
-          food: v.food,
-          service: v.service,
-          atmosphere: v.atmosphere,
-          valueForMoney: v.valueForMoney,
           overall: v.overall,
         },
         notes: v.notes.trim() || undefined,
@@ -611,15 +686,15 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     if (!this.canEditVisit(exp)) return;
 
     const alert = await this.alertController.create({
-      header: this.i18n.t('item.deleteVisitTitle'),
-      message: this.i18n.t('item.deleteVisitConfirm'),
+      header: this.i18n.t(this.deleteVisitTitleKey()),
+      message: this.i18n.t(this.deleteVisitConfirmKey()),
       buttons: [
         {
           text: this.i18n.t('common.cancel'),
           role: 'cancel',
         },
         {
-          text: this.i18n.t('item.deleteVisit'),
+          text: this.i18n.t(this.deleteVisitLabelKey()),
           role: 'destructive',
           handler: () => {
             this.deleteVisit(exp);
@@ -736,6 +811,34 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     );
   }
 
+  googleRatingLine(): string | null {
+    if (this.isWineItem()) return null;
+    const place = this.history()?.item.place;
+    const score = place?.googleRating;
+    if (score == null) return null;
+    const formatted = Number(score).toFixed(1);
+    const count = place?.googleUserRatingCount;
+    if (count != null && count > 0) {
+      return this.i18n.t('item.googleRatingWithCount', {
+        score: formatted,
+        count: String(count),
+      });
+    }
+    return this.i18n.t('item.googleRating', { score: formatted });
+  }
+
+  placeTips(): string | null {
+    if (this.isWineItem()) return null;
+    const place = this.history()?.item.place;
+    if (!place) return null;
+    const locale = this.i18n.locale();
+    const tips =
+      locale === 'es'
+        ? place.tipsEs || place.tipsEn
+        : place.tipsEn || place.tipsEs;
+    return tips?.trim() || null;
+  }
+
   hasGoogleMaps(): boolean {
     const loc = this.history()?.item.location;
     if (!loc) return false;
@@ -785,16 +888,24 @@ export class ItemDetailPage implements OnInit, ViewWillEnter {
     return this.i18n.t('common.dash');
   }
 
+  setVisitStars(stars: number) {
+    this.visitForm.controls.overall.setValue(stars);
+  }
+
+  starsText(value: number | null | undefined): string {
+    return visitStarsText(value);
+  }
+
+  starsLabel(value: number | null | undefined): string {
+    return visitStarsLabel(value);
+  }
+
   private resetVisitForm() {
     this.revokeNewPhotoPreviews();
     this.visitPhotoEntries.set([]);
     this.visitForm.reset({
       visitedAt: new Date().toISOString().slice(0, 10),
-      food: 8,
-      service: 8,
-      atmosphere: 8,
-      valueForMoney: 8,
-      overall: 8,
+      overall: 4,
       notes: '',
       wouldReturn: true,
     });

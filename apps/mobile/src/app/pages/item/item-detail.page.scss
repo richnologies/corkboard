@@ -1,3 +1,9 @@
+.page-shell.no-tab-inset {
+  ion-fab {
+    margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  }
+}
+
 .detail-header {
   margin-bottom: 16px;
 
@@ -44,6 +50,33 @@ h3 {
   background: var(--cork-surface);
 }
 
+.place-hero {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 0 0 14px;
+  border: 1px solid var(--cork-border);
+  background: var(--cork-surface);
+}
+
+.google-tips {
+  white-space: pre-line;
+  margin: 0 0 8px;
+}
+
+.google-attribution {
+  margin: 0;
+  font-size: 12px;
+  color: var(--cork-muted);
+}
+
+.google-rating {
+  color: var(--cork-muted);
+  font-size: 14px;
+}
+
 .tags {
   margin: 16px 0;
   display: flex;
@@ -67,18 +100,6 @@ h3 {
   font-family: 'Fraunces', Georgia, serif;
   margin: 24px 0 12px;
   letter-spacing: -0.02em;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 24px;
-
-  .section-title {
-    margin: 0;
-  }
 }
 
 .location-hint {
@@ -134,15 +155,30 @@ app-osm-map {
   }
 }
 
-.experience-card {
-  margin: 0 0 12px;
-  border: 1px solid var(--cork-border);
-  box-shadow: var(--cork-shadow);
-  border-radius: 16px;
+.experience-list {
+  background: transparent;
+}
 
-  ion-card-content {
-    padding: 14px;
+.experience-item {
+  --padding-start: 0;
+  --padding-end: 0;
+  --inner-padding-end: 0;
+  --background: transparent;
+  border: none;
+  margin-bottom: 0;
+
+  &::part(native) {
+    padding-inline: 0;
   }
+}
+
+.experience-body {
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--cork-surface);
+  border: 1px solid var(--cork-border);
+  border-radius: var(--cork-radius-lg);
+  box-shadow: var(--cork-shadow);
 }
 
 .experience-header {
@@ -151,12 +187,6 @@ app-osm-map {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 10px;
-
-  .experience-actions {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
 
   .experience-title {
     display: flex;
@@ -174,6 +204,39 @@ app-osm-map {
   ion-icon {
     color: var(--ion-color-tertiary);
     flex-shrink: 0;
+  }
+}
+
+.rating-stars {
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: var(--ion-color-primary);
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+
+.star-picker {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 16px;
+  padding: 4px 0;
+
+  .star-btn {
+    margin: 0;
+    --padding-start: 6px;
+    --padding-end: 6px;
+    min-width: 44px;
+    min-height: 44px;
+
+    ion-icon {
+      font-size: 28px;
+      color: var(--cork-muted);
+    }
+
+    &.selected ion-icon {
+      color: var(--ion-color-primary);
+    }
   }
 }
 
@@ -432,21 +495,13 @@ app-osm-map {
   --padding-end: 0;
 }
 
-.visit-photo-meta .remove-photo {
-  align-self: flex-start;
-  margin: 0;
-  min-height: 32px;
-  font-size: 13px;
-  --padding-start: 0;
-}
-
 .save-visit-btn {
   margin-top: 0;
   --box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
 }
 
 .delete-visit-btn {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .photo-selection-error {

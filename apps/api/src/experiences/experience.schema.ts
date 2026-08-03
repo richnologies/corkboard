@@ -6,19 +6,7 @@ export type ExperienceDocument = HydratedDocument<Experience>;
 
 @Schema({ _id: false })
 export class StructuredRatingEmbed {
-  @Prop({ min: 0, max: 10 })
-  food?: number;
-
-  @Prop({ min: 0, max: 10 })
-  service?: number;
-
-  @Prop({ min: 0, max: 10 })
-  atmosphere?: number;
-
-  @Prop({ min: 0, max: 10 })
-  valueForMoney?: number;
-
-  @Prop({ min: 0, max: 10 })
+  @Prop({ min: 1, max: 5 })
   overall?: number;
 }
 

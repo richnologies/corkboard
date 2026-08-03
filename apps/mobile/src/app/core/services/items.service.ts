@@ -145,10 +145,6 @@ export class ItemsService {
 export interface ExperiencePayload {
   visitedAt?: string;
   rating?: {
-    food?: number;
-    service?: number;
-    atmosphere?: number;
-    valueForMoney?: number;
     overall?: number;
   };
   notes?: string;

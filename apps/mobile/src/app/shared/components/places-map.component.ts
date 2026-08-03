@@ -11,6 +11,7 @@ import {
 import * as L from 'leaflet';
 import { Item, ItemStatus } from '@org/domain';
 import { hasMapLocation } from '../maps';
+import { visitStarsText } from '../visit-stars';
 
 const STATUS_MARKER_COLORS: Record<ItemStatus, string> = {
   [ItemStatus.Wishlist]: '#2563eb',
@@ -201,7 +202,7 @@ export class PlacesMapComponent implements AfterViewInit, OnDestroy {
       parts.push(visitedAt.toLocaleDateString());
     }
     if (visit.rating?.overall != null) {
-      parts.push(`${visit.rating.overall}/10`);
+      parts.push(visitStarsText(visit.rating.overall));
     }
     return parts.length ? parts.join(' · ') : null;
   }

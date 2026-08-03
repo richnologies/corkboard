@@ -579,4 +579,87 @@ export class OpenAiService {
       countryEs: asString(parsed['countryEs']),
     };
   }
+
+  /**
+   * Distill Google review texts into short bilingual tips for a place.
+   */
+  async summarizePlaceReviews(seed: {
+    name: string;
+    reviews: string[];
+  }): Promise<{ tipsEn?: string; tipsEs?: string }> {
+    this.assertConfigured();
+
+    const reviewBlock = seed.reviews
+      .map((text, index) => `${index + 1}. ${text}`)
+      .join('\n\n');
+
+    const prompt =
+      'You summarize Google Maps reviews for a travel/dining app.\n' +
+      'From the reviews, extract practical tips: recommended dishes or drinks to order, what to ask for, booking/timing notes, and caveats.\n' +
+      'Write concise tips (2–4 short sentences or a short bullet-style paragraph). Do not invent facts not supported by the reviews.\n' +
+      'If reviews lack actionable tips, return null for both tips.\n' +
+      'Return ONLY a JSON object (no markdown) with keys:\n' +
+      '- tipsEn (English tips|null)\n' +
+      '- tipsEs (Spanish tips|null)\n\n' +
+      `Place: ${seed.name}\n\nReviews:\n${reviewBlock}`;
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.enrichModel,
+        temperature: 0.2,
+        input: prompt,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new ServiceUnavailableException(
+        `Place tips summarization failed (${response.status}): ${detail.slice(0, 240)}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      output_text?: string;
+      output?: Array<{
+        type?: string;
+        content?: Array<{ type?: string; text?: string }>;
+      }>;
+    };
+
+    let raw = data.output_text?.trim() ?? '';
+    if (!raw && Array.isArray(data.output)) {
+      for (const item of data.output) {
+        if (item.type !== 'message' || !Array.isArray(item.content)) continue;
+        for (const part of item.content) {
+          if (part.type === 'output_text' && part.text) {
+            raw = part.text.trim();
+            break;
+          }
+          if (part.type === 'text' && part.text) {
+            raw = part.text.trim();
+            break;
+          }
+        }
+        if (raw) break;
+      }
+    }
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = jsonMatch
+      ? (JSON.parse(jsonMatch[0]) as Record<string, unknown>)
+      : {};
+
+    const asString = (value: unknown) =>
+      typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+    return {
+      tipsEn: asString(parsed['tipsEn']),
+      tipsEs: asString(parsed['tipsEs']),
+    };
+  }
 }

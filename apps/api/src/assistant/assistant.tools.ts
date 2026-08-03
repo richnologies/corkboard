@@ -162,7 +162,7 @@ export const ASSISTANT_TOOLS = [
           notes: { type: 'string' },
           overallRating: {
             type: 'number',
-            description: 'Overall score 0-10 — only if the user gave a rating',
+            description: 'Overall score 1-5 stars — only if the user gave a rating',
           },
           wouldReturn: {
             type: 'boolean',
@@ -210,7 +210,7 @@ export const ASSISTANT_TOOLS = [
           notes: { type: 'string' },
           overallRating: {
             type: 'number',
-            description: 'Overall score 0-10 — only if the user gave a rating',
+            description: 'Overall score 1-5 stars — only if the user gave a rating',
           },
           wouldReturn: {
             type: 'boolean',
@@ -251,7 +251,7 @@ export const ASSISTANT_TOOLS = [
           visitedAt: {
             type: 'string',
             description:
-              'The visit date as currently logged, used to identify which visit when experienceId is unknown',
+              'The visit date as currently logged (or relative phrase like "ayer"/"yesterday"), used to identify which visit when experienceId is unknown. The server resolves relative phrases — do not ask the user to convert to an exact date.',
           },
           newVisitedAt: {
             type: 'string',
@@ -266,7 +266,7 @@ export const ASSISTANT_TOOLS = [
           notes: { type: 'string' },
           overallRating: {
             type: 'number',
-            description: 'Overall score 0-10',
+            description: 'Overall score 1-5 stars',
           },
           wouldReturn: {
             type: 'boolean',
@@ -454,7 +454,7 @@ export const ASSISTANT_TOOLS = [
           visitedAt: {
             type: 'string',
             description:
-              'Visit date to identify the visit when experienceId is unknown',
+              'Visit date to identify the visit when experienceId is unknown. Accepts ISO (YYYY-MM-DD) or relative phrases like "ayer", "yesterday", "hoy", "today". The server resolves them — do not ask the user to convert to an exact date.',
           },
           wineItemIds: {
             type: 'array',

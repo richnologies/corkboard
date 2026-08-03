@@ -181,11 +181,11 @@ export class AssistantService {
           'For questions about what/where the user ate on a specific day ("last Wednesday", "ayer", "el miércoles pasado"), use find_visits_by_date with relativeDate or an ISO fromDate. Never use get_last_visit unless asking about one named place.',
           'get_last_visit only answers when the user last went to a specific saved place by name — not for date-based recall.',
           'WINE PHOTO: When a bottle/label photo is attached and the user wants to find or identify it, call identify_wine_from_photo first. Never call search_wines with placeholders like "ese vino", "this wine", "vino", or the user\'s instruction text.',
-          'WINE: For questions about a named bottle (origin, region, winery, grapes, whether it is good), use search_wines then get_wine_details. Vivino ratings are 1–5 (not the 0–10 visit scores). Be honest about ratings — cite the score when available. Prefer *Es fields when replying in Spanish and *En fields when replying in English (description, region, country, style, grapes, allergens). When sharing a Vivino URL, write it as a plain https URL or markdown [name](url) — the app renders links.',
+          'WINE: For questions about a named bottle (origin, region, winery, grapes, whether it is good), use search_wines then get_wine_details. Vivino ratings are 1–5 (same scale as visit star ratings, but Vivino scores are from Vivino — do not mix them up with the user\'s visit stars). Be honest about ratings — cite the score when available. Prefer *Es fields when replying in Spanish and *En fields when replying in English (description, region, country, style, grapes, allergens). When sharing a Vivino URL, write it as a plain https URL or markdown [name](url) — the app renders links.',
           'WINE MEMORY: For "what wine did we have last Wednesday / at X restaurant", use find_visits_by_date or search_visits / get_last_visit and read the wines field on visits. Prefer those over inventing bottles.',
           'WINE PROVENANCE: For questions about who gifted, gave, recommended, or suggested a wine ("el vino que me regaló Pere", "wines from Ana"), use list_saved_wines with referrerName and/or query set to that person. Provenance lives on the wine item (source.referrerName + source.notes), NOT on visit companions. Do not answer from visit companions alone for gift/recommendation questions.',
           'WINE SAVE: Never call ensure_wine until the user clearly asks to save/add the wine (or confirms after you offer). For statements like "I like X" or questions about a bottle: search_wines + get_wine_details, tell them about it, and ask whether they want it saved — use <<<replies: ...>>> for yes/no when helpful. If multiple matches, present options first; only ensure_wine after they pick AND confirm saving (or after an explicit save request).',
-          'WINE LINK: To attach bottles to a past visit, resolve the visit then link_wines_to_visit (after ensure_wine if needed — ask before creating new wines). When logging a new visit, pass wineNames/wineItemIds on log_visit or create_place_and_log_visit.',
+          'WINE LINK: To attach bottles to a past visit, resolve the visit then link_wines_to_visit (after ensure_wine if needed — ask before creating new wines). Pass visitedAt as the same relative phrase the user used ("ayer", "yesterday") or an ISO date — the server resolves both. Never ask the user for permission to retry with an exact date; just call the tool with the relative phrase or ISO. When logging a new visit, pass wineNames/wineItemIds on log_visit or create_place_and_log_visit.',
           `Always reply in ${replyLanguage}, matching the language the user writes in.`,
           'Use tools to look up real data before answering — never invent visits, places, or wines.',
           'For questions about where the user has been (city, country, neighborhood), use list_visited_places with a city or country filter. Never infer location from the place name alone. Prefer nameEs/locationEs when replying in Spanish and nameEn/locationEn when replying in English.',
@@ -197,7 +197,7 @@ export class AssistantService {
           'If search_google_places returns multiple matches, present numbered options and wait for the user to pick one.',
           'Use ensure_place_from_google to save a Google match without logging a visit — especially before answering questions about visit history.',
           'Only call create_place_and_log_visit when the user is reporting a new visit they went on.',
-          'Before calling log_visit or create_place_and_log_visit, you must have ALL of: when (visitedAt), overall rating (0-10), and companions (use an empty array if they went alone).',
+          'Before calling log_visit or create_place_and_log_visit, you must have ALL of: when (visitedAt), overall rating (1-5 stars), and companions (use an empty array if they went alone).',
           'If any of those are missing, ask the user in one friendly message — never guess a date, never default a rating, never log until they answer.',
           'Also capture wouldReturn (whether they would come back). Infer it from their feedback when clear ("never again" → false, "can\'t wait to return" / "loved it" → true). If their feedback is ambiguous, ask briefly — yes/no is fine.',
           'Before logging companions by name, call search_people for each name. Use the exact saved name when there is a clear match.',
@@ -214,7 +214,7 @@ export class AssistantService {
             ? `The user already confirmed wine "${resolvedWine.name}" (itemId: ${resolvedWine.id}). Continue with their request — get_wine_details, link_wines_to_visit, or answer — using this itemId. Do not ask them to pick the wine again.`
             : null,
           'Keep replies short and conversational (2-4 sentences unless listing matches).',
-          'When you ask a clarifying question with short, tap-friendly answers (dates like today/yesterday, ratings 0–10, alone vs with someone, yes/no for coming back, etc.), end your message with exactly one machine line: <<<replies: Option1 | Option2 | Option3>>> in the user\'s language. Include 2–5 options. Only add that line when you are waiting for the user to answer — never on confirmations, finished logs, or lookup answers.',
+          'When you ask a clarifying question with short, tap-friendly answers (dates like today/yesterday, ratings 1–5 stars, alone vs with someone, yes/no for coming back, etc.), end your message with exactly one machine line: <<<replies: Option1 | Option2 | Option3>>> in the user\'s language. Include 2–5 options. Only add that line when you are waiting for the user to answer — never on confirmations, finished logs, or lookup answers.',
           photoNote,
         ]
           .filter((line): line is string => !!line)
@@ -460,6 +460,7 @@ export class AssistantService {
           args,
           relatedItems,
           onWineCandidates,
+          timeZone,
         );
       default:
         return { error: `Unknown tool: ${toolCall.function.name}` };
@@ -608,10 +609,6 @@ export class AssistantService {
         notes,
         wouldReturn,
         rating: {
-          food: overallRating,
-          service: overallRating,
-          atmosphere: overallRating,
-          valueForMoney: overallRating,
           overall: overallRating,
         },
         photos: photos.map((photo) => ({
@@ -954,7 +951,7 @@ export class AssistantService {
     timeZone: string,
     relatedItems: Map<string, string>,
   ) {
-    const resolved = await this.resolveExperience(userId, args);
+    const resolved = await this.resolveExperience(userId, args, timeZone);
     if ('error' in resolved || 'matches' in resolved) {
       return resolved;
     }
@@ -996,10 +993,6 @@ export class AssistantService {
     if (typeof args['overallRating'] === 'number') {
       const overall = args['overallRating'];
       updates['rating'] = {
-        food: overall,
-        service: overall,
-        atmosphere: overall,
-        valueForMoney: overall,
         overall,
       };
     }
@@ -1052,6 +1045,7 @@ export class AssistantService {
   private async resolveExperience(
     userId: string,
     args: Record<string, unknown>,
+    timeZone = 'UTC',
   ): Promise<
     | { experienceId: string; itemId: string; itemName: string }
     | { error: string }
@@ -1081,14 +1075,17 @@ export class AssistantService {
 
     const placeName = args['placeName'] ? String(args['placeName']) : undefined;
     const placeId = args['placeId'] ? String(args['placeId']) : undefined;
-    const visitedAt = args['visitedAt'] ? String(args['visitedAt']) : undefined;
+    const visitedAtRaw = args['visitedAt'] ? String(args['visitedAt']) : undefined;
 
-    if (!visitedAt) {
+    if (!visitedAtRaw) {
       return {
         error:
           'experienceId is required, or provide placeName/placeId with visitedAt to identify the visit.',
       };
     }
+
+    const visitedAt =
+      this.parseVisitedAt(visitedAtRaw, timeZone) ?? visitedAtRaw;
 
     const resolved = await this.resolvePlace(userId, placeName, placeId);
     if ('error' in resolved) {
@@ -1111,8 +1108,17 @@ export class AssistantService {
     );
 
     if (!matches.length) {
+      // Soft fallback: if a relative phrase resolved to a date but nothing matched,
+      // try the most recent visit at that place (same day-window conversation flow).
+      if (experiences.length === 1) {
+        return {
+          experienceId: experiences[0].id,
+          itemId: place.id,
+          itemName: place.name,
+        };
+      }
       return {
-        error: `No visit found for ${place.name} on ${targetKey}.`,
+        error: `No visit found for ${place.name} on ${targetKey} (from "${visitedAtRaw}"). Try experienceId from find_visits_by_date or get_last_visit.`,
       };
     }
     if (matches.length > 1) {
@@ -1218,10 +1224,6 @@ export class AssistantService {
       notes,
       wouldReturn,
       rating: {
-        food: overallRating,
-        service: overallRating,
-        atmosphere: overallRating,
-        valueForMoney: overallRating,
         overall: overallRating,
       },
       photos: photos.map((photo) => ({
@@ -1623,8 +1625,8 @@ export class AssistantService {
       if (lastVisit.overallRating != null) {
         parts.push(
           locale === 'es'
-            ? `Puntuación: ${lastVisit.overallRating}/10.`
-            : `Rating: ${lastVisit.overallRating}/10.`,
+            ? `Puntuación: ${lastVisit.overallRating}/5.`
+            : `Rating: ${lastVisit.overallRating}/5.`,
         );
       }
       if (lastVisit.notes) {
@@ -1665,8 +1667,8 @@ export class AssistantService {
     const overallRating = args['overallRating'];
     if (
       typeof overallRating !== 'number' ||
-      overallRating < 0 ||
-      overallRating > 10
+      overallRating < 1 ||
+      overallRating > 5
     ) {
       missingFields.push('overallRating');
     }
@@ -1829,11 +1831,11 @@ export class AssistantService {
     }
 
     const asksRating =
-      /(rating|score|out of|\/\s*10|puntuaci|nota|del 0|de 0 a|0\s*[-–]\s*10|overall)/.test(
+      /(rating|score|stars?|out of|\/\s*5|puntuaci|nota|estrellas|del 1|de 1 a|1\s*[-–]\s*5|overall)/.test(
         lower,
       );
     if (asksRating) {
-      replies.push('10', '8', '7', '5', '3');
+      replies.push('5', '4', '3', '2', '1');
     }
 
     const asksDate =
@@ -1874,7 +1876,7 @@ export class AssistantService {
     const place = placeName ? ` ${placeName}` : '';
     const labels: Record<VisitLogMissingField, { en: string; es: string }> = {
       visitedAt: { en: 'when you went', es: 'cuándo fuiste' },
-      overallRating: { en: 'your overall rating (0–10)', es: 'tu puntuación general (0–10)' },
+      overallRating: { en: 'your overall rating (1–5 stars)', es: 'tu puntuación general (1–5 estrellas)' },
       companions: { en: 'who you went with (or if you went alone)', es: 'con quién fuiste (o si fuiste solo/a)' },
     };
 
@@ -2099,10 +2101,6 @@ export class AssistantService {
     const rating =
       pending.overallRating != null
         ? {
-            food: pending.overallRating,
-            service: pending.overallRating,
-            atmosphere: pending.overallRating,
-            valueForMoney: pending.overallRating,
             overall: pending.overallRating,
           }
         : undefined;
@@ -2582,8 +2580,9 @@ export class AssistantService {
     args: Record<string, unknown>,
     relatedItems: Map<string, string>,
     onWineCandidates: (candidates: WineCandidate[]) => void,
+    timeZone = 'UTC',
   ) {
-    const resolved = await this.resolveExperience(userId, args);
+    const resolved = await this.resolveExperience(userId, args, timeZone);
     if ('error' in resolved || 'matches' in resolved) {
       return resolved;
     }

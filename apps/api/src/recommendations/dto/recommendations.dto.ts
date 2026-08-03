@@ -38,8 +38,8 @@ export class RecommendationsQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
-  @Max(10)
+  @Min(1)
+  @Max(5)
   minOverallRating?: number;
 
   @IsOptional()

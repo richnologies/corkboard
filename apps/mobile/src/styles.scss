@@ -30,6 +30,60 @@ body {
   }
 }
 
+.section-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cork-muted);
+}
+
+.icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--cork-radius-md);
+  background: var(--cork-primary-soft);
+  border: 1px solid var(--cork-primary-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  ion-icon {
+    font-size: 22px;
+    color: var(--ion-color-primary);
+  }
+
+  &.wine {
+    width: 48px;
+    height: 60px;
+    border-radius: 12px;
+  }
+
+  &.avatar {
+    border-radius: 50%;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ion-color-primary);
+    letter-spacing: -0.02em;
+  }
+
+  img,
+  .wine-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.favorite-heart {
+  font-size: 16px;
+  color: var(--cork-favorite-heart);
+  flex-shrink: 0;
+}
+
 ion-toolbar {
   --border-width: 0 0 1px 0;
   --border-color: var(--cork-border);
@@ -43,7 +97,7 @@ ion-header ion-toolbar:last-of-type {
 
 ion-searchbar {
   --background: var(--cork-surface);
-  --border-radius: 14px;
+  --border-radius: var(--cork-radius-md);
   --box-shadow: var(--cork-shadow);
   --icon-color: var(--cork-muted);
   --placeholder-color: var(--cork-muted);
@@ -75,7 +129,7 @@ ion-button[fill='clear'] {
 }
 
 ion-button {
-  --border-radius: 14px;
+  --border-radius: var(--cork-radius-md);
   font-weight: 600;
   letter-spacing: -0.01em;
   text-transform: none;
@@ -83,12 +137,12 @@ ion-button {
 
 ion-segment {
   --background: var(--cork-primary-muted);
-  border-radius: 14px;
+  border-radius: var(--cork-radius-md);
   padding: 4px;
 }
 
 ion-segment-button {
-  --border-radius: 10px;
+  --border-radius: var(--cork-radius-sm);
   --color: var(--cork-muted);
   --color-checked: var(--ion-color-primary);
   --indicator-color: var(--cork-surface);
@@ -109,19 +163,29 @@ ion-list {
 }
 
 ion-item {
-  --border-radius: 14px;
+  --border-radius: var(--cork-radius-md);
   --background: var(--cork-surface);
   --padding-start: 14px;
   --padding-end: 14px;
   --inner-padding-end: 0;
   margin-bottom: 8px;
   border: 1px solid var(--cork-border);
-  border-radius: 14px;
+  border-radius: var(--cork-radius-md);
+}
+
+ion-item-sliding {
+  margin-bottom: 8px;
+  border-radius: var(--cork-radius-lg);
+  overflow: hidden;
+
+  ion-item {
+    margin-bottom: 0;
+  }
 }
 
 .item-card {
   margin: 0 0 12px;
-  border-radius: 18px;
+  border-radius: var(--cork-radius-lg);
   box-shadow: var(--cork-shadow);
   border: 1px solid var(--cork-border);
   overflow: hidden;
@@ -135,28 +199,92 @@ ion-item {
   ion-card-content {
     padding: 16px;
   }
+
+  &.compact ion-card-content {
+    padding: 14px;
+  }
+}
+
+.item-list {
+  background: transparent;
+  padding: 0;
+}
+
+.list-card-item {
+  --padding-start: 0;
+  --padding-end: 0;
+  --inner-padding-end: 0;
+  --background: transparent;
+  border: none;
+  margin-bottom: 0;
+
+  &::part(native) {
+    padding-inline: 0;
+  }
+}
+
+.list-card-body {
+  width: 100%;
+  padding: 16px;
+  background: var(--cork-surface);
+  border: 1px solid var(--cork-border);
+  border-radius: var(--cork-radius-lg);
+  box-shadow: var(--cork-shadow);
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--cork-radius-pill);
   font-size: 11px;
   font-weight: 700;
   text-transform: capitalize;
   letter-spacing: 0.02em;
 
-  &.wishlist { background: #dbeafe; color: #1d4ed8; }
-  &.planned { background: #e0f2fe; color: #0369a1; }
-  &.visited { background: #e0e7ff; color: #4338ca; }
-  &.rejected { background: #f1f5f9; color: #64748b; }
+  &.wishlist {
+    background: var(--cork-status-wishlist-bg);
+    color: var(--cork-status-wishlist-fg);
+  }
+  &.planned {
+    background: var(--cork-status-planned-bg);
+    color: var(--cork-status-planned-fg);
+  }
+  &.visited {
+    background: var(--cork-status-visited-bg);
+    color: var(--cork-status-visited-fg);
+  }
+  &.rejected {
+    background: var(--cork-status-rejected-bg);
+    color: var(--cork-status-rejected-fg);
+  }
+
+  &.friend {
+    background: var(--cork-person-friend-bg);
+    color: var(--cork-person-friend-fg);
+  }
+  &.family {
+    background: var(--cork-person-family-bg);
+    color: var(--cork-person-family-fg);
+  }
+  &.pareja {
+    background: var(--cork-person-pareja-bg);
+    color: var(--cork-person-pareja-fg);
+  }
+  &.colleague {
+    background: var(--cork-person-colleague-bg);
+    color: var(--cork-person-colleague-fg);
+  }
+  &.other {
+    background: var(--cork-person-other-bg);
+    color: var(--cork-person-other-fg);
+  }
 }
 
 .tag-chip.favorite {
-  --background: #ede9fe;
-  --color: #6d28d9;
-  border-color: #c4b5fd;
+  --background: var(--cork-favorite-bg);
+  --color: var(--cork-favorite-fg);
+  border-color: var(--cork-favorite-border);
 }
 
 .tag-chip {
@@ -190,6 +318,19 @@ ion-item {
   ion-button {
     margin-top: 16px;
   }
+
+  &.compact {
+    padding: 32px 16px;
+
+    ion-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 16px;
+    }
+  }
 }
 
 .auth-shell {
@@ -209,10 +350,24 @@ ion-item {
   border: 1px solid var(--cork-border);
 }
 
+.footer-link {
+  margin: 20px 0 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--cork-muted);
+  line-height: 1.5;
+
+  a {
+    color: var(--ion-color-primary);
+    font-weight: 600;
+    text-decoration: none;
+  }
+}
+
 .score-badge {
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #0284c7 100%);
   color: white;
-  border-radius: 14px;
+  border-radius: var(--cork-radius-md);
   padding: 10px 12px;
   font-weight: 700;
   font-size: 18px;
@@ -228,7 +383,9 @@ ion-item {
   padding: 8px 0 12px;
   scrollbar-width: none;
 
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   ion-chip {
     flex-shrink: 0;
@@ -250,6 +407,8 @@ ion-item {
   background: var(--ion-toolbar-background);
   border-top: 1px solid var(--cork-border);
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 8px;
 
   ion-button {
     margin: 0;

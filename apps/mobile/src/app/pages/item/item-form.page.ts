@@ -323,6 +323,14 @@ export class ItemFormPage implements OnInit {
     this.defaultHref.set(wine ? '/tabs/wines' : '/tabs/places');
   }
 
+  formTitleKey(): string {
+    const isNew = this.id === 'new' || !this.id;
+    if (this.isWineForm()) {
+      return isNew ? 'item.addTitleWine' : 'item.editTitleWine';
+    }
+    return isNew ? 'item.addTitle' : 'item.editTitle';
+  }
+
   onWineSearch(ev: CustomEvent) {
     const value = (ev.detail as { value?: string }).value ?? '';
     this.wineSearchQuery.set(value);

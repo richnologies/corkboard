@@ -7,6 +7,7 @@ import { SharingModule } from '../sharing/sharing.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { ExperiencesModule } from '../experiences/experiences.module.js';
 import { PeopleModule } from '../people/people.module.js';
+import { PlacesModule } from '../places/places.module.js';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { PeopleModule } from '../people/people.module.js';
     StorageModule,
     forwardRef(() => ExperiencesModule),
     PeopleModule,
+    PlacesModule,
   ],
   controllers: [ItemsController],
   providers: [ItemsService],

@@ -138,19 +138,8 @@ export class ExperienceSearchIndexService implements OnModuleInit {
       lines.push(`Companions: ${input.companions.join(', ')}`);
     }
 
-    if (input.rating) {
-      const parts = [
-        input.rating.food != null ? `food ${input.rating.food}` : null,
-        input.rating.service != null ? `service ${input.rating.service}` : null,
-        input.rating.atmosphere != null
-          ? `atmosphere ${input.rating.atmosphere}`
-          : null,
-        input.rating.valueForMoney != null
-          ? `value ${input.rating.valueForMoney}`
-          : null,
-        input.rating.overall != null ? `overall ${input.rating.overall}` : null,
-      ].filter(Boolean);
-      if (parts.length) lines.push(`Ratings: ${parts.join(', ')}`);
+    if (input.rating?.overall != null) {
+      lines.push(`Rating: ${input.rating.overall}/5 stars`);
     }
 
     if (input.notes?.trim()) {

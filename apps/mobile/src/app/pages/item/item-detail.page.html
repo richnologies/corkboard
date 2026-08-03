@@ -27,7 +27,7 @@
     <div class="loading-center"><ion-spinner /></div>
   } @else if (history(); as h) {
     <div class="detail-header">
-      <span class="status-pill" [class]="h.item.status">{{ 'status.' + h.item.status | translate }}</span>
+      <span class="status-pill" [class]="h.item.status">{{ (isWineItem() ? 'statusWine.' : 'status.') + h.item.status | translate }}</span>
       <p class="category">{{ 'category.' + h.item.category | translate }}</p>
       @if (h.item.status === rejectedStatus && h.item.rejectionReason) {
         <p class="rejection-reason">{{ h.item.rejectionReason }}</p>
@@ -45,7 +45,31 @@
           }
         </p>
       }
+      @if (googleRatingLine(); as googleRating) {
+        <p class="location google-rating">{{ googleRating }}</p>
+      }
     </div>
+
+    @if (!isWineItem() && h.item.place; as place) {
+      @if (place.coverPhotoUrl || placeTips()) {
+        <ion-card class="item-card">
+          <ion-card-content>
+            @if (place.coverPhotoUrl) {
+              <img
+                class="place-hero"
+                [src]="place.coverPhotoUrl"
+                [alt]="displayName()"
+              />
+            }
+            @if (placeTips(); as tips) {
+              <h3>{{ 'item.googleTips' | translate }}</h3>
+              <p class="notes google-tips">{{ tips }}</p>
+            }
+            <p class="google-attribution">{{ 'item.googleAttribution' | translate }}</p>
+          </ion-card-content>
+        </ion-card>
+      }
+    }
 
     @if (h.item.wine; as wine) {
       <ion-card class="item-card">
@@ -148,146 +172,135 @@
       </div>
     }
 
-    <div class="section-header">
-      <h3 class="section-title">{{ 'item.yourHistory' | translate }}</h3>
-      <ion-button size="small" (click)="openVisitModal()">
-        <ion-icon slot="start" name="add-circle-outline" />
-        {{ 'item.logVisit' | translate }}
-      </ion-button>
-    </div>
+    <h3 class="section-title">{{ historyTitleKey() | translate }}</h3>
 
     <div class="stats">
       <div class="stat">
         <span class="value">{{ h.visitCount }}</span>
-        <span class="label">{{ 'item.visits' | translate }}</span>
+        <span class="label">{{ visitsCountLabelKey() | translate }}</span>
       </div>
       <div class="stat">
-        <span class="value">{{ h.latestExperience?.rating?.overall?.toFixed(1) ?? ('common.dash' | translate) }}</span>
+        <span class="value">{{ starsText(h.latestExperience?.rating?.overall) || ('common.dash' | translate) }}</span>
         <span class="label">{{ 'item.latestScore' | translate }}</span>
       </div>
       <div class="stat">
         <span class="value">{{ wouldReturnLabel(h.wouldReturn) }}</span>
-        <span class="label">{{ 'item.returnQuestion' | translate }}</span>
+        <span class="label">{{ returnQuestionKey() | translate }}</span>
       </div>
     </div>
 
     @if (h.experiences.length) {
-      <ion-list lines="none">
+      <ion-list lines="none" class="experience-list">
         @for (exp of h.experiences; track exp.id) {
-          <ion-card class="experience-card">
-            <ion-card-content>
-              <div class="experience-header">
-                <div class="experience-title">
-                  <ion-icon name="calendar-outline" />
-                  <h3>{{ exp.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}</h3>
-                </div>
-                <div class="experience-actions">
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    (click)="openEditVisitModal(exp)"
-                    [disabled]="!canEditVisit(exp)"
-                    [attr.aria-label]="'item.editVisitTitle' | translate"
-                  >
-                    <ion-icon slot="icon-only" name="pencil-outline" />
-                  </ion-button>
-                  <ion-button
-                    fill="clear"
-                    size="small"
-                    color="danger"
-                    (click)="confirmDeleteVisit(exp)"
-                    [disabled]="!canEditVisit(exp) || deletingVisit()"
-                    [attr.aria-label]="'item.deleteVisit' | translate"
-                  >
-                    <ion-icon slot="icon-only" name="trash-outline" />
-                  </ion-button>
-                </div>
-              </div>
-
-              @if (showsAuthor(exp)) {
-                <p class="visit-author">{{ 'item.visitBy' | translate: { name: exp.authorDisplayName ?? '' } }}</p>
-              }
-
-              @if (exp.rating) {
-                <div class="rating-grid">
-                  @if (exp.rating.overall != null) {
-                    <span class="rating-pill overall">{{ 'item.visitOverall' | translate }}: {{ exp.rating.overall }}/10</span>
-                  }
-                  @if (exp.rating.food != null) {
-                    <span class="rating-pill">{{ 'item.ratingFood' | translate }}: {{ exp.rating.food }}</span>
-                  }
-                  @if (exp.rating.service != null) {
-                    <span class="rating-pill">{{ 'item.ratingService' | translate }}: {{ exp.rating.service }}</span>
-                  }
-                  @if (exp.rating.atmosphere != null) {
-                    <span class="rating-pill">{{ 'item.ratingAtmosphere' | translate }}: {{ exp.rating.atmosphere }}</span>
-                  }
-                  @if (exp.rating.valueForMoney != null) {
-                    <span class="rating-pill">{{ 'item.ratingValue' | translate }}: {{ exp.rating.valueForMoney }}</span>
-                  }
-                </div>
-              }
-
-              @if (isLinkedVisit(exp) && exp.place; as place) {
-                <p class="linked-place">
-                  <ion-icon name="map-outline" />
-                  <button type="button" class="link-button" (click)="openPlace(place.id)">
-                    {{ 'item.triedAt' | translate: { place: place.name } }}
-                  </button>
-                </p>
-              }
-
-              @if (companionsLabel(exp); as companions) {
-                <p class="companions">
-                  <ion-icon name="people-outline" />
-                  {{ 'item.visitedWith' | translate }}: {{ companions }}
-                </p>
-              }
-
-              @if (exp.wines?.length) {
-                <div class="linked-wines">
-                  <p class="linked-wines-label">
-                    <ion-icon name="wine-outline" />
-                    {{ 'item.winesWithVisit' | translate }}
-                  </p>
-                  <div class="wine-chips">
-                    @for (wine of exp.wines!; track wine.id) {
-                      <ion-chip (click)="openWine(wine.id)">{{ wine.name }}</ion-chip>
-                    }
+          <ion-item-sliding>
+            <ion-item lines="none" class="experience-item">
+              <div class="experience-body">
+                <div class="experience-header">
+                  <div class="experience-title">
+                    <ion-icon name="calendar-outline" />
+                    <h3>{{ exp.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}</h3>
                   </div>
                 </div>
-              }
 
-              @if (exp.notes) {
-                <p class="notes">{{ exp.notes }}</p>
-              }
+                @if (showsAuthor(exp)) {
+                  <p class="visit-author">{{ 'item.visitBy' | translate: { name: exp.authorDisplayName ?? '' } }}</p>
+                }
 
-              @if (exp.photos?.length) {
-                <div class="photo-grid">
-                  @for (photo of exp.photos!; track photo.key; let photoIndex = $index) {
-                    <figure
-                      class="photo-card"
-                      (click)="openExperiencePhotoViewer(exp.photos!, photoIndex)"
-                    >
-                      @if (photoDisplayUrl(photo); as src) {
-                        <img [src]="src" [alt]="photo.notes || ('item.visitPhoto' | translate)" />
-                      } @else {
-                        <div class="photo-placeholder"><ion-spinner name="crescent" /></div>
+                @if (exp.rating?.overall; as overall) {
+                  <div class="rating-stars" [attr.aria-label]="starsLabel(overall)">
+                    {{ starsText(overall) }}
+                  </div>
+                }
+
+                @if (isLinkedVisit(exp) && exp.place; as place) {
+                  <p class="linked-place">
+                    <ion-icon name="map-outline" />
+                    <button type="button" class="link-button" (click)="openPlace(place.id)">
+                      {{ 'item.triedAt' | translate: { place: place.name } }}
+                    </button>
+                  </p>
+                }
+
+                @if (companionsLabel(exp); as companions) {
+                  <p class="companions">
+                    <ion-icon name="people-outline" />
+                    {{ visitedWithKey() | translate }}: {{ companions }}
+                  </p>
+                }
+
+                @if (exp.wines?.length) {
+                  <div class="linked-wines">
+                    <p class="linked-wines-label">
+                      <ion-icon name="wine-outline" />
+                      {{ 'item.winesWithVisit' | translate }}
+                    </p>
+                    <div class="wine-chips">
+                      @for (wine of exp.wines!; track wine.id) {
+                        <ion-chip (click)="openWine(wine.id)">{{ wine.name }}</ion-chip>
                       }
-                      @if (photo.notes) {
-                        <figcaption>{{ photo.notes }}</figcaption>
-                      }
-                    </figure>
-                  }
-                </div>
-              }
-            </ion-card-content>
-          </ion-card>
+                    </div>
+                  </div>
+                }
+
+                @if (exp.notes) {
+                  <p class="notes">{{ exp.notes }}</p>
+                }
+
+                @if (exp.photos?.length) {
+                  <div class="photo-grid">
+                    @for (photo of exp.photos!; track photo.key; let photoIndex = $index) {
+                      <figure
+                        class="photo-card"
+                        (click)="openExperiencePhotoViewer(exp.photos!, photoIndex)"
+                      >
+                        @if (photoDisplayUrl(photo); as src) {
+                          <img [src]="src" [alt]="photo.notes || ('item.visitPhoto' | translate)" />
+                        } @else {
+                          <div class="photo-placeholder"><ion-spinner /></div>
+                        }
+                        @if (photo.notes) {
+                          <figcaption>{{ photo.notes }}</figcaption>
+                        }
+                      </figure>
+                    }
+                  </div>
+                }
+              </div>
+            </ion-item>
+            @if (canEditVisit(exp)) {
+              <ion-item-options side="end">
+                <ion-item-option
+                  color="primary"
+                  (click)="openEditVisitModal(exp)"
+                  [attr.aria-label]="'item.editVisitTitle' | translate"
+                >
+                  <ion-icon slot="icon-only" name="pencil-outline" />
+                </ion-item-option>
+                <ion-item-option
+                  color="danger"
+                  [disabled]="deletingVisit()"
+                  (click)="confirmDeleteVisit(exp)"
+                  [attr.aria-label]="deleteVisitLabelKey() | translate"
+                >
+                  <ion-icon slot="icon-only" name="trash-outline" />
+                </ion-item-option>
+              </ion-item-options>
+            }
+          </ion-item-sliding>
         }
       </ion-list>
     } @else {
-      <p class="empty-notes">{{ 'item.noVisits' | translate }}</p>
+      <p class="empty-notes">{{ emptyVisitsKey() | translate }}</p>
     }
+
+    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+      <ion-fab-button
+        (click)="openVisitModal()"
+        [attr.aria-label]="logVisitKey() | translate"
+      >
+        <ion-icon name="add" />
+      </ion-fab-button>
+    </ion-fab>
   }
 </ion-content>
 
@@ -295,7 +308,7 @@
   <ng-template>
     <ion-header>
       <ion-toolbar>
-        <ion-title>{{ (isEditingVisit() ? 'item.editVisitTitle' : 'item.logVisitTitle') | translate }}</ion-title>
+        <ion-title>{{ visitModalTitleKey() | translate }}</ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="closeVisitModal()">{{ 'common.cancel' | translate }}</ion-button>
         </ion-buttons>
@@ -314,30 +327,27 @@
           </ion-item>
 
           <p class="form-section-label">{{ 'item.ratingsSection' | translate }}</p>
-          <ion-item>
-            <ion-label>{{ 'item.ratingFood' | translate }}: {{ visitForm.value.food }}/10</ion-label>
-            <ion-range min="0" max="10" step="0.5" formControlName="food" />
-          </ion-item>
-          <ion-item>
-            <ion-label>{{ 'item.ratingService' | translate }}: {{ visitForm.value.service }}/10</ion-label>
-            <ion-range min="0" max="10" step="0.5" formControlName="service" />
-          </ion-item>
-          <ion-item>
-            <ion-label>{{ 'item.ratingAtmosphere' | translate }}: {{ visitForm.value.atmosphere }}/10</ion-label>
-            <ion-range min="0" max="10" step="0.5" formControlName="atmosphere" />
-          </ion-item>
-          <ion-item>
-            <ion-label>{{ 'item.ratingValue' | translate }}: {{ visitForm.value.valueForMoney }}/10</ion-label>
-            <ion-range min="0" max="10" step="0.5" formControlName="valueForMoney" />
-          </ion-item>
-          <ion-item>
-            <ion-label>{{ 'item.visitOverall' | translate }}: {{ visitForm.value.overall }}/10</ion-label>
-            <ion-range min="0" max="10" step="0.5" formControlName="overall" />
-          </ion-item>
+          <div class="star-picker" role="group" [attr.aria-label]="'item.visitOverall' | translate">
+            @for (star of starOptions; track star) {
+              <ion-button
+                fill="clear"
+                type="button"
+                class="star-btn"
+                [class.selected]="(visitForm.value.overall ?? 0) >= star"
+                (click)="setVisitStars(star)"
+                [attr.aria-label]="star + '/5'"
+              >
+                <ion-icon
+                  slot="icon-only"
+                  [name]="(visitForm.value.overall ?? 0) >= star ? 'star' : 'star-outline'"
+                />
+              </ion-button>
+            }
+          </div>
 
           <ion-item>
             <ion-select
-              [label]="'item.visitVisibility' | translate"
+              [label]="visitVisibilityKey() | translate"
               labelPlacement="stacked"
               [value]="visitVisibility()"
               (ionChange)="visitVisibility.set($any($event.detail).value)"
@@ -349,8 +359,8 @@
           </ion-item>
 
           <app-person-picker
-            labelKey="item.visitedWith"
-            emptyHintKey="people.visitEmptyHint"
+            [labelKey]="visitedWithKey()"
+            [emptyHintKey]="companionsEmptyHintKey()"
             libraryLabelKey="people.pickerLibrary"
             [personIds]="companionPersonIds()"
             (personIdsChange)="companionPersonIds.set($event)"
@@ -374,7 +384,7 @@
 
           <ion-item>
             <ion-toggle formControlName="wouldReturn" labelPlacement="start">
-              {{ 'item.wouldReturn' | translate }}
+              {{ wouldReturnKey() | translate }}
             </ion-toggle>
           </ion-item>
         </ion-list>
@@ -406,46 +416,47 @@
           <ion-list lines="none" class="visit-photo-list">
             <ion-reorder-group [disabled]="false" (ionItemReorder)="onPhotoReorder($event)">
               @for (photo of visitPhotoEntries(); track photo.id; let photoIndex = $index) {
-                <ion-item class="visit-photo-draft" lines="none">
-                  <ion-reorder slot="start" class="visit-photo-reorder-handle" />
-                  <div class="visit-photo-draft-content">
-                    <div class="visit-photo-row">
-                      <button
-                        type="button"
-                        class="visit-photo-thumb"
-                        (click)="openVisitPhotoPreview(photoIndex)"
-                      >
-                        @if (visitPhotoPreview(photo); as src) {
-                          <img [src]="src" alt="" />
-                        } @else {
-                          <div class="photo-placeholder"><ion-spinner name="crescent" /></div>
-                        }
-                        <span class="visit-photo-index">{{ photoIndex + 1 }}</span>
-                      </button>
-
-                      <div class="visit-photo-meta">
-                        <ion-textarea
-                          [label]="'item.photoNotes' | translate"
-                          labelPlacement="stacked"
-                          [value]="photo.notes"
-                          (ionInput)="updatePhotoNotes(photo.id, $any($event.target).value)"
-                          [autoGrow]="true"
-                          class="visit-photo-notes"
-                        />
-                        <ion-button
-                          fill="clear"
-                          color="medium"
-                          class="remove-photo"
-                          (click)="removeVisitPhoto(photo.id)"
+                <ion-item-sliding>
+                  <ion-item class="visit-photo-draft" lines="none">
+                    <ion-reorder slot="start" class="visit-photo-reorder-handle" />
+                    <div class="visit-photo-draft-content">
+                      <div class="visit-photo-row">
+                        <button
                           type="button"
+                          class="visit-photo-thumb"
+                          (click)="openVisitPhotoPreview(photoIndex)"
                         >
-                          <ion-icon slot="start" name="close-circle-outline" />
-                          {{ 'item.removePhoto' | translate }}
-                        </ion-button>
+                          @if (visitPhotoPreview(photo); as src) {
+                            <img [src]="src" alt="" />
+                          } @else {
+                            <div class="photo-placeholder"><ion-spinner /></div>
+                          }
+                          <span class="visit-photo-index">{{ photoIndex + 1 }}</span>
+                        </button>
+
+                        <div class="visit-photo-meta">
+                          <ion-textarea
+                            [label]="'item.photoNotes' | translate"
+                            labelPlacement="stacked"
+                            [value]="photo.notes"
+                            (ionInput)="updatePhotoNotes(photo.id, $any($event.target).value)"
+                            [autoGrow]="true"
+                            class="visit-photo-notes"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </ion-item>
+                  </ion-item>
+                  <ion-item-options side="end">
+                    <ion-item-option
+                      color="danger"
+                      (click)="removeVisitPhoto(photo.id)"
+                      [attr.aria-label]="'item.removePhoto' | translate"
+                    >
+                      <ion-icon slot="icon-only" name="trash-outline" />
+                    </ion-item-option>
+                  </ion-item-options>
+                </ion-item-sliding>
               }
             </ion-reorder-group>
           </ion-list>
@@ -458,7 +469,7 @@
         @if (savingVisit()) {
           <ion-spinner name="crescent" />
         } @else {
-          {{ (isEditingVisit() ? 'item.saveVisitChanges' : 'item.saveVisit') | translate }}
+          {{ saveVisitKey() | translate }}
         }
       </ion-button>
 
@@ -475,7 +486,7 @@
           @if (deletingVisit()) {
             <ion-spinner name="crescent" />
           } @else {
-            {{ 'item.deleteVisit' | translate }}
+            {{ deleteVisitLabelKey() | translate }}
           }
         </ion-button>
       }

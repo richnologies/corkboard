@@ -4,11 +4,27 @@ import {
   ItemHistory,
   ItemShare,
   LatestVisitSummary,
+  PlaceDetails,
   StructuredRating,
   WineDetails,
 } from '@org/domain';
 import { ItemDocument } from '../items/item.schema.js';
 import { ItemShareDocument } from '../sharing/share.schema.js';
+
+export function mapPlaceDetails(
+  place?: ItemDocument['place'],
+): PlaceDetails | undefined {
+  if (!place) return undefined;
+  return {
+    googleRating: place.googleRating,
+    googleUserRatingCount: place.googleUserRatingCount,
+    coverPhotoKey: place.coverPhotoKey,
+    // coverPhotoUrl is filled at read time via signed S3 URL
+    tipsEn: place.tipsEn,
+    tipsEs: place.tipsEs,
+    enrichedAt: place.enrichedAt,
+  };
+}
 
 export function mapWineDetails(
   wine?: ItemDocument['wine'],
@@ -57,6 +73,7 @@ export function mapItem(doc: ItemDocument): Item {
     category: doc.category,
     status: doc.status,
     location: doc.location ?? undefined,
+    place: mapPlaceDetails(doc.place),
     wine: mapWineDetails(doc.wine),
     links: doc.links ?? [],
     photoKeys: doc.photoKeys ?? [],

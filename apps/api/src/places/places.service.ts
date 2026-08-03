@@ -124,7 +124,7 @@ export class PlacesService {
         headers: {
           'X-Goog-Api-Key': this.googleMapsApiKey,
           'X-Goog-FieldMask':
-            'id,displayName,formattedAddress,location,types,googleMapsUri,addressComponents',
+            'id,displayName,formattedAddress,location,types,googleMapsUri,addressComponents,rating,userRatingCount,reviews,photos',
         },
       },
     );
@@ -138,6 +138,69 @@ export class PlacesService {
 
     const place = (await response.json()) as Parameters<typeof mapGooglePlace>[0];
     return mapGooglePlace(place);
+  }
+
+  /**
+   * Download a Google Places photo via the Places Media API.
+   * `photoName` is the resource name from Place Details, e.g. places/.../photos/...
+   */
+  async fetchPlacePhoto(
+    photoName: string,
+    maxHeightPx = 800,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    if (!this.googleMapsApiKey) {
+      throw new ServiceUnavailableException(
+        'Google Maps is not configured. Set GOOGLE_MAPS_API_KEY.',
+      );
+    }
+
+    const name = photoName.startsWith('places/')
+      ? photoName
+      : `places/${photoName}`;
+    const url = new URL(`https://places.googleapis.com/v1/${name}/media`);
+    url.searchParams.set('maxHeightPx', String(Math.min(maxHeightPx, 1600)));
+    url.searchParams.set('skipHttpRedirect', 'true');
+
+    const response = await fetch(url, {
+      headers: {
+        'X-Goog-Api-Key': this.googleMapsApiKey,
+      },
+    });
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Google place photo failed (${response.status}) for ${name}`,
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      photoUri?: string;
+      name?: string;
+    };
+    if (!data.photoUri) {
+      this.logger.warn(`Google place photo missing photoUri for ${name}`);
+      return null;
+    }
+
+    const imageResponse = await fetch(data.photoUri, {
+      redirect: 'follow',
+      headers: { Accept: 'image/*,*/*' },
+    });
+    if (!imageResponse.ok) {
+      this.logger.warn(
+        `Google place photo download failed (${imageResponse.status})`,
+      );
+      return null;
+    }
+
+    const buffer = Buffer.from(await imageResponse.arrayBuffer());
+    if (!buffer.length) return null;
+
+    const contentType =
+      imageResponse.headers.get('content-type')?.split(';')[0]?.trim() ||
+      'image/jpeg';
+    return { buffer, contentType };
   }
 
   async search(query: string, limit = 5): Promise<PlaceSearchResult[]> {

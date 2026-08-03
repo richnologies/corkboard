@@ -3,7 +3,7 @@
     <ion-buttons slot="start">
       <ion-back-button [defaultHref]="defaultHref()" />
     </ion-buttons>
-    <ion-title>{{ (id === 'new' || !id ? 'item.addTitle' : 'item.editTitle') | translate }}</ion-title>
+    <ion-title>{{ formTitleKey() | translate }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -28,7 +28,7 @@
         <ion-item>
           <ion-select [label]="'item.status' | translate" labelPlacement="stacked" formControlName="status">
             @for (s of statuses; track s) {
-              <ion-select-option [value]="s">{{ 'status.' + s | translate }}</ion-select-option>
+              <ion-select-option [value]="s">{{ (isWineForm() ? 'statusWine.' : 'status.') + s | translate }}</ion-select-option>
             }
           </ion-select>
         </ion-item>

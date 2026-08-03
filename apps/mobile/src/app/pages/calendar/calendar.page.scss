@@ -10,12 +10,6 @@
   }
 }
 
-.loading-wrap {
-  display: flex;
-  justify-content: center;
-  padding: 48px 0;
-}
-
 .calendar-card {
   margin: 12px 16px 0;
   padding: 12px 10px 14px;
@@ -138,22 +132,6 @@
   text-transform: capitalize;
 }
 
-.empty-day {
-  margin: 0;
-  color: var(--cork-muted);
-  font-size: 14px;
-}
-
-.visit-card {
-  margin: 0 0 12px;
-  border-radius: 16px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
-
-  ion-card-content {
-    padding: 14px 16px;
-  }
-}
-
 .visit-header {
   display: flex;
   align-items: flex-start;
@@ -183,9 +161,10 @@
 
 .score {
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--ion-color-primary);
+  letter-spacing: 0.06em;
 }
 
 .visit-meta {

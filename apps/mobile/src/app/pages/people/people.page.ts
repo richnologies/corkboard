@@ -3,18 +3,26 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
+import { AlertController } from '@ionic/angular/standalone';
 import {
   IonButton,
   IonButtons,
   IonChip,
   IonContent,
+  IonFab,
+  IonFabButton,
+  IonFooter,
   IonHeader,
   IonIcon,
   IonInput,
   IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
   IonLabel,
   IonList,
   IonModal,
+  IonSearchbar,
   IonSelect,
   IonSelectOption,
   IonSpinner,
@@ -22,12 +30,14 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { addOutline, createOutline, peopleOutline, trashOutline } from 'ionicons/icons';
-import { Person, PersonActivity, PersonType } from '@org/domain';
+import { add, peopleOutline, trashOutline } from 'ionicons/icons';
+import { ItemCategory, Person, PersonActivity, PersonType, isWineCategory } from '@org/domain';
 import { PeopleService } from '../../core/services/people.service';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { visitStarsLabel } from '../../shared/visit-stars';
 
-addIcons({ addOutline, createOutline, peopleOutline, trashOutline });
+addIcons({ add, peopleOutline, trashOutline });
 
 @Component({
   selector: 'app-people',
@@ -41,8 +51,12 @@ addIcons({ addOutline, createOutline, peopleOutline, trashOutline });
     IonTitle,
     IonButtons,
     IonContent,
+    IonSearchbar,
     IonList,
     IonItem,
+    IonItemSliding,
+    IonItemOptions,
+    IonItemOption,
     IonLabel,
     IonChip,
     IonIcon,
@@ -52,6 +66,9 @@ addIcons({ addOutline, createOutline, peopleOutline, trashOutline });
     IonInput,
     IonSelect,
     IonSelectOption,
+    IonFab,
+    IonFabButton,
+    IonFooter,
   ],
   templateUrl: './people.page.html',
   styleUrl: './people.page.scss',
@@ -60,12 +77,16 @@ export class PeoplePage implements OnInit, ViewWillEnter {
   private readonly peopleService = inject(PeopleService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly alertCtrl = inject(AlertController);
+  private readonly i18n = inject(I18nService);
 
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly deleting = signal(false);
   readonly activityLoading = signal(false);
   readonly people = signal<Person[]>([]);
   readonly search = signal('');
+  readonly activeType = signal<PersonType | undefined>(undefined);
   readonly editorOpen = signal(false);
   readonly editingPerson = signal<Person | null>(null);
   readonly activity = signal<PersonActivity | null>(null);
@@ -92,6 +113,18 @@ export class PeoplePage implements OnInit, ViewWillEnter {
   onSearchInput(ev: CustomEvent) {
     this.search.set((ev.detail as { value?: string }).value ?? '');
     this.applyFilter();
+  }
+
+  setType(type: PersonType | undefined) {
+    this.activeType.set(this.activeType() === type ? undefined : type);
+    this.applyFilter();
+  }
+
+  initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
   openCreate() {
@@ -180,15 +213,43 @@ export class PeoplePage implements OnInit, ViewWillEnter {
     this.router.navigate(['/item', itemId]);
   }
 
-  removePerson(person: Person) {
-    this.peopleService.remove(person.id).subscribe({
-      next: () => this.loadPeople(),
+  statusLabelKey(category: ItemCategory | string, status: string): string {
+    return `${isWineCategory(category as ItemCategory) ? 'statusWine' : 'status'}.${status}`;
+  }
+
+  async confirmDeletePerson(person: Person) {
+    const alert = await this.alertCtrl.create({
+      header: this.i18n.t('people.deletePersonTitle', { name: person.name }),
+      message: this.i18n.t('people.deletePersonConfirm'),
+      buttons: [
+        { text: this.i18n.t('common.cancel'), role: 'cancel' },
+        {
+          text: this.i18n.t('people.deletePerson'),
+          role: 'destructive',
+          handler: () => this.removePerson(person),
+        },
+      ],
     });
+    await alert.present();
   }
 
   visitRating(entry: PersonActivity['visits'][number]): string | null {
     const overall = entry.rating?.overall;
-    return overall != null ? `${overall}/10` : null;
+    return visitStarsLabel(overall);
+  }
+
+  private removePerson(person: Person) {
+    this.deleting.set(true);
+    this.peopleService.remove(person.id).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        if (this.editingPerson()?.id === person.id) {
+          this.closeEditor();
+        }
+        this.loadPeople();
+      },
+      error: () => this.deleting.set(false),
+    });
   }
 
   private persistPerson(
@@ -224,7 +285,11 @@ export class PeoplePage implements OnInit, ViewWillEnter {
 
   private applyFilter() {
     const q = this.search().trim().toLowerCase();
-    const list = this.people();
+    const type = this.activeType();
+    let list = this.people();
+    if (type) {
+      list = list.filter((person) => person.type === type);
+    }
     this.filteredPeople.set(
       q
         ? list.filter((person) => person.name.toLowerCase().includes(q))

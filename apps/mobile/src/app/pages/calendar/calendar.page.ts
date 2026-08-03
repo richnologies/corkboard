@@ -29,6 +29,7 @@ import { firstValueFrom } from 'rxjs';
 import { ExperiencesService } from '../../core/services/experiences.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { visitStarsLabel, visitStarsText } from '../../shared/visit-stars';
 
 addIcons({
   calendarOutline,
@@ -219,6 +220,14 @@ export class CalendarPage implements OnInit, ViewWillEnter {
 
   openPlace(itemId: string) {
     this.router.navigate(['/item', itemId]);
+  }
+
+  starsText(value: number | null | undefined): string {
+    return visitStarsText(value);
+  }
+
+  starsLabel(value: number | null | undefined): string {
+    return visitStarsLabel(value);
   }
 
   private startOfMonth(date: Date): Date {

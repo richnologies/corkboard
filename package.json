@@ -8,7 +8,8 @@
     "start:mobile": "nx serve mobile",
     "build:mobile": "nx build mobile",
     "build:app": "nx build mobile",
-    "s3:cors": "node scripts/configure-s3-cors.mjs"
+    "s3:cors": "node scripts/configure-s3-cors.mjs",
+    "migrate:visit-ratings": "node scripts/migrate-visit-ratings-to-stars.mjs"
   },
   "private": true,
   "devDependencies": {

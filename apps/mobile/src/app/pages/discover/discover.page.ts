@@ -2,7 +2,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ViewWillEnter } from '@ionic/angular/common';
-import { MenuController } from '@ionic/angular/standalone';
+import { MenuController, AlertController } from '@ionic/angular/standalone';
 import {
   IonButton,
   IonButtons,
@@ -12,6 +12,9 @@ import {
   IonHeader,
   IonIcon,
   IonItem,
+  IonItemOption,
+  IonItemOptions,
+  IonItemSliding,
   IonLabel,
   IonList,
   IonMenu,
@@ -91,6 +94,9 @@ interface PendingPhoto {
     IonTextarea,
     IonList,
     IonItem,
+    IonItemSliding,
+    IonItemOptions,
+    IonItemOption,
     IonLabel,
     TranslatePipe,
     ChatLinksPipe,
@@ -111,6 +117,7 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private readonly menu = inject(MenuController);
+  private readonly alertCtrl = inject(AlertController);
 
   readonly messages = signal<ChatMessage[]>([]);
   readonly draft = signal('');
@@ -205,8 +212,23 @@ export class DiscoverPage implements OnInit, OnDestroy, ViewWillEnter {
     });
   }
 
-  removeConversation(event: Event, id: string) {
-    event.stopPropagation();
+  async confirmDeleteConversation(id: string) {
+    const alert = await this.alertCtrl.create({
+      header: this.i18n.t('chat.deleteConversationTitle'),
+      message: this.i18n.t('chat.deleteConversationConfirm'),
+      buttons: [
+        { text: this.i18n.t('common.cancel'), role: 'cancel' },
+        {
+          text: this.i18n.t('chat.deleteConversation'),
+          role: 'destructive',
+          handler: () => this.removeConversation(id),
+        },
+      ],
+    });
+    await alert.present();
+  }
+
+  removeConversation(id: string) {
     this.conversationsService.remove(id).subscribe({
       next: () => {
         if (this.conversationId() === id) {

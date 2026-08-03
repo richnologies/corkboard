@@ -1,5 +1,17 @@
 import { ItemCategory } from '@org/domain';
 
+export interface GooglePlaceReview {
+  text: string;
+  rating?: number;
+  relativePublishTimeDescription?: string;
+}
+
+export interface GooglePlacePhoto {
+  name: string;
+  widthPx?: number;
+  heightPx?: number;
+}
+
 export interface GooglePlaceRecord {
   googlePlaceId: string;
   name: string;
@@ -11,12 +23,28 @@ export interface GooglePlaceRecord {
   googleMapsUrl: string;
   types: string[];
   category: ItemCategory;
+  rating?: number;
+  userRatingCount?: number;
+  reviews?: GooglePlaceReview[];
+  photos?: GooglePlacePhoto[];
 }
 
 interface GoogleAddressComponent {
   longText?: string;
   shortText?: string;
   types?: string[];
+}
+
+interface GoogleReviewPayload {
+  text?: { text?: string };
+  rating?: number;
+  relativePublishTimeDescription?: string;
+}
+
+interface GooglePhotoPayload {
+  name?: string;
+  widthPx?: number;
+  heightPx?: number;
 }
 
 interface GooglePlacePayload {
@@ -27,6 +55,10 @@ interface GooglePlacePayload {
   googleMapsUri?: string;
   types?: string[];
   addressComponents?: GoogleAddressComponent[];
+  rating?: number;
+  userRatingCount?: number;
+  reviews?: GoogleReviewPayload[];
+  photos?: GooglePhotoPayload[];
 }
 
 export function normalizeGooglePlaceId(id: string): string {
@@ -74,6 +106,29 @@ export function mapGooglePlace(place: GooglePlacePayload): GooglePlaceRecord | n
   ]);
   const country = readAddressComponent(place.addressComponents, ['country']);
 
+  const reviews = (place.reviews ?? [])
+    .map((review) => {
+      const text = review.text?.text?.trim();
+      if (!text) return null;
+      return {
+        text,
+        rating: review.rating,
+        relativePublishTimeDescription: review.relativePublishTimeDescription,
+      } satisfies GooglePlaceReview;
+    })
+    .filter((review): review is GooglePlaceReview => !!review);
+
+  const photos = (place.photos ?? [])
+    .map((photo) => {
+      if (!photo.name) return null;
+      return {
+        name: photo.name,
+        widthPx: photo.widthPx,
+        heightPx: photo.heightPx,
+      } satisfies GooglePlacePhoto;
+    })
+    .filter((photo): photo is GooglePlacePhoto => !!photo);
+
   return {
     googlePlaceId,
     name,
@@ -87,6 +142,10 @@ export function mapGooglePlace(place: GooglePlacePayload): GooglePlaceRecord | n
       `https://www.google.com/maps/search/?api=1&query=${place.location.latitude},${place.location.longitude}&query_place_id=${googlePlaceId}`,
     types,
     category: inferCategoryFromTypes(types),
+    rating: place.rating,
+    userRatingCount: place.userRatingCount,
+    reviews: reviews.length ? reviews : undefined,
+    photos: photos.length ? photos : undefined,
   };
 }
 

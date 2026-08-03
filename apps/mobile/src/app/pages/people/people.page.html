@@ -1,25 +1,31 @@
 <ion-header>
   <ion-toolbar>
-    <ion-title>{{ 'people.title' | translate }}</ion-title>
-    <ion-buttons slot="end">
-      <ion-button (click)="openCreate()">
-        <ion-icon slot="icon-only" name="add-outline" />
-      </ion-button>
-    </ion-buttons>
+    <ion-title class="brand-title">{{ 'people.title' | translate }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar class="search-toolbar">
+    <ion-searchbar
+      class="search-input"
+      [placeholder]="'people.searchPlaceholder' | translate"
+      debounce="400"
+      [value]="search()"
+      (ionInput)="onSearchInput($event)"
+    />
   </ion-toolbar>
 </ion-header>
 
 <ion-content class="page-shell">
   <p class="intro">{{ 'people.intro' | translate }}</p>
 
-  <ion-item class="search-item">
-    <ion-input
-      [placeholder]="'people.searchPlaceholder' | translate"
-      [value]="search()"
-      (ionInput)="onSearchInput($event)"
-      clearInput
-    />
-  </ion-item>
+  <div class="filter-bar">
+    @for (type of personTypes; track type) {
+      <ion-chip
+        [color]="activeType() === type ? 'primary' : undefined"
+        (click)="setType(type)"
+      >
+        {{ 'personType.' + type | translate }}
+      </ion-chip>
+    }
+  </div>
 
   @if (loading()) {
     <div class="loading-center"><ion-spinner /></div>
@@ -33,28 +39,34 @@
   } @else {
     <ion-list lines="none">
       @for (person of filteredPeople(); track person.id) {
-        <ion-item class="person-card" button (click)="openEdit(person)">
-          <ion-label>
-            <h2>{{ person.name }}</h2>
-            <p>
-              <ion-chip class="type-chip">{{ 'personType.' + person.type | translate }}</ion-chip>
-            </p>
-            <p class="stats">
-              {{ 'people.stats' | translate: { sources: person.sourceCount, visits: person.visitCount } }}
-            </p>
-          </ion-label>
-          <ion-button
-            slot="end"
-            fill="clear"
-            color="medium"
-            (click)="$event.stopPropagation(); removePerson(person)"
-          >
-            <ion-icon slot="icon-only" name="trash-outline" />
-          </ion-button>
-        </ion-item>
+        <ion-item-sliding>
+          <ion-item button detail="false" class="person-row" (click)="openEdit(person)">
+            <div class="icon-wrap avatar" slot="start">{{ initials(person.name) }}</div>
+            <ion-label>
+              <h2>{{ person.name }}</h2>
+              <p class="stats">
+                {{ 'people.stats' | translate: { sources: person.sourceCount, visits: person.visitCount } }}
+              </p>
+            </ion-label>
+            <span class="status-pill" [class]="person.type" slot="end">
+              {{ 'personType.' + person.type | translate }}
+            </span>
+          </ion-item>
+          <ion-item-options side="end">
+            <ion-item-option color="danger" (click)="confirmDeletePerson(person)">
+              <ion-icon slot="icon-only" name="trash-outline" />
+            </ion-item-option>
+          </ion-item-options>
+        </ion-item-sliding>
       }
     </ion-list>
   }
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+    <ion-fab-button (click)="openCreate()">
+      <ion-icon name="add" />
+    </ion-fab-button>
+  </ion-fab>
 </ion-content>
 
 <ion-modal [isOpen]="editorOpen()" (didDismiss)="closeEditor()">
@@ -90,7 +102,7 @@
             [disabled]="saving()"
           >
             @if (saving()) {
-              <ion-spinner name="crescent" />
+              <ion-spinner />
             } @else {
               {{ 'people.createAnyway' | translate: { name: form.controls.name.value.trim() } }}
             }
@@ -100,7 +112,7 @@
           </ion-button>
         </div>
       } @else {
-        <form [formGroup]="form" (ngSubmit)="savePerson()">
+        <form id="personForm" [formGroup]="form" (ngSubmit)="savePerson()">
           <ion-list lines="none">
             <ion-item>
               <ion-input
@@ -129,10 +141,10 @@
               </p>
 
               @if (activityLoading()) {
-                <div class="loading-center"><ion-spinner name="crescent" /></div>
+                <div class="loading-center"><ion-spinner /></div>
               } @else if (activity(); as data) {
                 <div class="activity-block">
-                  <h3>{{ 'people.recommendationsTitle' | translate }}</h3>
+                  <h3 class="section-label">{{ 'people.recommendationsTitle' | translate }}</h3>
                   @if (data.recommendations.length) {
                     <ion-list lines="none">
                       @for (item of data.recommendations; track item.id) {
@@ -141,7 +153,7 @@
                             <h4>{{ item.name }}</h4>
                             <p>
                               {{ 'category.' + item.category | translate }} ·
-                              {{ 'status.' + item.status | translate }}
+                              {{ statusLabelKey(item.category, item.status) | translate }}
                             </p>
                           </ion-label>
                         </ion-item>
@@ -153,7 +165,7 @@
                 </div>
 
                 <div class="activity-block">
-                  <h3>{{ 'people.visitsTitle' | translate }}</h3>
+                  <h3 class="section-label">{{ 'people.visitsTitle' | translate }}</h3>
                   @if (data.visits.length) {
                     <ion-list lines="none">
                       @for (visit of data.visits; track visit.id) {
@@ -177,16 +189,40 @@
               }
             </section>
           }
-
-          <ion-button expand="block" type="submit" [disabled]="saving() || form.invalid">
-            @if (saving()) {
-              <ion-spinner name="crescent" />
-            } @else {
-              {{ 'common.save' | translate }}
-            }
-          </ion-button>
         </form>
       }
     </ion-content>
+    @if (!disambiguationOpen()) {
+      <ion-footer class="form-sticky-footer">
+        <ion-button
+          expand="block"
+          type="submit"
+          form="personForm"
+          [disabled]="saving() || form.invalid || deleting()"
+        >
+          @if (saving()) {
+            <ion-spinner />
+          } @else {
+            {{ 'common.save' | translate }}
+          }
+        </ion-button>
+        @if (editingPerson(); as person) {
+          <ion-button
+            expand="block"
+            fill="outline"
+            color="danger"
+            type="button"
+            [disabled]="saving() || deleting()"
+            (click)="confirmDeletePerson(person)"
+          >
+            @if (deleting()) {
+              <ion-spinner />
+            } @else {
+              {{ 'people.deletePerson' | translate }}
+            }
+          </ion-button>
+        }
+      </ion-footer>
+    }
   </ng-template>
 </ion-modal>

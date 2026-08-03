@@ -109,6 +109,13 @@ export class S3Service implements OnModuleInit {
     return `catalog/wines/${safeId}.${ext}`;
   }
 
+  /** Cached Google Places cover photo for a user-owned place item. */
+  placeCoverKey(userId: string, extension = 'jpg'): string {
+    const id = randomUUID();
+    const ext = extension.replace(/^\./, '').toLowerCase() || 'jpg';
+    return `${this.userPrefix(userId)}places/cover/${id}.${ext}`;
+  }
+
   isCatalogWineKey(key: string): boolean {
     return key.startsWith('catalog/wines/');
   }

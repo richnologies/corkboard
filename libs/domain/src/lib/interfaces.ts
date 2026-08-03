@@ -28,6 +28,21 @@ export interface Location {
   googleMapsUrl?: string;
 }
 
+/** Google enrichment for place items (cover photo, rating, review tips). */
+export interface PlaceDetails {
+  /** Google Places rating on a 1–5 scale */
+  googleRating?: number;
+  googleUserRatingCount?: number;
+  /** S3 object key for the cached cover photo */
+  coverPhotoKey?: string;
+  /** Signed S3 URL filled at read time */
+  coverPhotoUrl?: string;
+  tipsEn?: string;
+  tipsEs?: string;
+  /** ISO timestamp; once set, enrichment is not re-run */
+  enrichedAt?: string;
+}
+
 /** Catalog metadata for wine items (often filled from Vivino). */
 export interface WineDetails {
   vivinoWineId?: string;
@@ -185,10 +200,6 @@ export interface Conversation extends ConversationSummary {
 }
 
 export interface StructuredRating {
-  food?: number;
-  service?: number;
-  atmosphere?: number;
-  valueForMoney?: number;
   overall?: number;
 }
 
@@ -209,6 +220,7 @@ export interface Item {
   status: ItemStatus;
   rejectionReason?: string;
   location?: Location;
+  place?: PlaceDetails;
   wine?: WineDetails;
   links: string[];
   photoKeys: string[];

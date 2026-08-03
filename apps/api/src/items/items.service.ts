@@ -18,6 +18,7 @@ import {
   locationMatchesQuery,
   Item as ItemEntity,
   Location,
+  PlaceDetails,
   WineDetails,
 } from '@org/domain';
 import { Item, ItemDocument } from './item.schema.js';
@@ -32,10 +33,14 @@ import {
 import { PeopleService } from '../people/people.service.js';
 import { S3Service } from '../storage/s3.service.js';
 import { OpenAiService } from '../openai/openai.service.js';
+import { PlacesService } from '../places/places.service.js';
+
+const LIST_ENRICH_BACKFILL_LIMIT = 3;
 
 @Injectable()
 export class ItemsService implements OnModuleInit {
   private readonly logger = new Logger(ItemsService.name);
+  private readonly enrichingIds = new Set<string>();
 
   constructor(
     @InjectModel(Item.name) private readonly itemModel: Model<ItemDocument>,
@@ -46,6 +51,7 @@ export class ItemsService implements OnModuleInit {
     private readonly peopleService: PeopleService,
     private readonly s3Service: S3Service,
     private readonly openai: OpenAiService,
+    private readonly placesService: PlacesService,
   ) {}
 
   async onModuleInit() {
@@ -74,12 +80,17 @@ export class ItemsService implements OnModuleInit {
     delete payload.unsetRejectionReason;
     if (!categoryHasLocation(dto.category)) {
       delete payload.location;
+      delete payload.place;
     }
     if (!isWineCategory(dto.category)) {
       delete payload.wine;
+    } else {
+      delete payload.place;
     }
     const item = await this.itemModel.create(payload);
-    return this.withResolvedWineImage(mapItem(item));
+    let mapped = await this.withResolvedMedia(mapItem(item));
+    mapped = await this.ensurePlaceGoogleEnrichment(ownerId, mapped);
+    return mapped;
   }
 
   async findAll(userId: string, query: ItemQueryDto) {
@@ -137,7 +148,11 @@ export class ItemsService implements OnModuleInit {
         ? { ...item, latestVisit: mapLatestVisitSummary(latest) }
         : item;
     });
-    return Promise.all(mapped.map((item) => this.withResolvedWineImage(item)));
+    const resolved = await Promise.all(
+      mapped.map((item) => this.withResolvedMedia(item)),
+    );
+    this.queuePlaceEnrichmentBackfill(userId, resolved);
+    return resolved;
   }
 
   private readonly searchStopWords = new Set([
@@ -288,8 +303,10 @@ export class ItemsService implements OnModuleInit {
 
   async findOne(userId: string, itemId: string) {
     const item = await this.getAccessibleItem(userId, itemId);
-    const mapped = await this.withResolvedWineImage(mapItem(item));
-    return this.ensurePlaceLocalized(userId, mapped);
+    let mapped = await this.withResolvedMedia(mapItem(item));
+    mapped = await this.ensurePlaceLocalized(userId, mapped);
+    mapped = await this.ensurePlaceGoogleEnrichment(userId, mapped);
+    return mapped;
   }
 
   async findOwnedByGooglePlaceId(ownerId: string, googlePlaceId: string) {
@@ -342,10 +359,15 @@ export class ItemsService implements OnModuleInit {
     const unset: Record<string, 1> = {};
     if (!categoryHasLocation(category)) {
       unset.location = 1;
+      unset.place = 1;
+      delete update.place;
     }
     if (!isWineCategory(category)) {
       unset.wine = 1;
       delete update.wine;
+    } else {
+      unset.place = 1;
+      delete update.place;
     }
     if (prepared.unsetRejectionReason) {
       unset.rejectionReason = 1;
@@ -362,7 +384,7 @@ export class ItemsService implements OnModuleInit {
         { new: true },
       )
       .exec();
-    return this.withResolvedWineImage(mapItem(item!));
+    return this.withResolvedMedia(mapItem(item!));
   }
 
   async remove(userId: string, itemId: string) {
@@ -450,6 +472,12 @@ export class ItemsService implements OnModuleInit {
     );
   }
 
+  private async withResolvedMedia(item: ItemEntity): Promise<ItemEntity> {
+    let next = await this.withResolvedWineImage(item);
+    next = await this.withResolvedPlaceCover(next);
+    return next;
+  }
+
   private async withResolvedWineImage(item: ItemEntity): Promise<ItemEntity> {
     if (!item.wine?.imageKey) return item;
     try {
@@ -459,6 +487,154 @@ export class ItemsService implements OnModuleInit {
     } catch {
       return item;
     }
+  }
+
+  private async withResolvedPlaceCover(item: ItemEntity): Promise<ItemEntity> {
+    if (!item.place?.coverPhotoKey) return item;
+    try {
+      const coverPhotoUrl = await this.s3Service.createViewUrl(
+        item.place.coverPhotoKey,
+      );
+      const place: PlaceDetails = { ...item.place, coverPhotoUrl };
+      return { ...item, place };
+    } catch {
+      return item;
+    }
+  }
+
+  private needsPlaceGoogleEnrichment(item: ItemEntity): boolean {
+    if (!categoryHasLocation(item.category) || isWineCategory(item.category)) {
+      return false;
+    }
+    if (!item.location?.googlePlaceId) return false;
+    return !item.place?.enrichedAt;
+  }
+
+  private queuePlaceEnrichmentBackfill(userId: string, items: ItemEntity[]) {
+    const pending = items
+      .filter((item) => this.needsPlaceGoogleEnrichment(item))
+      .filter((item) => !this.enrichingIds.has(item.id))
+      .slice(0, LIST_ENRICH_BACKFILL_LIMIT);
+
+    for (const item of pending) {
+      this.enrichingIds.add(item.id);
+      void this.ensurePlaceGoogleEnrichment(userId, item)
+        .catch((error) => {
+          this.logger.warn(
+            `Place enrichment backfill failed for ${item.id}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+        })
+        .finally(() => {
+          this.enrichingIds.delete(item.id);
+        });
+    }
+  }
+
+  /**
+   * Pull Google rating, cover photo, and AI tips once per place with a googlePlaceId.
+   */
+  async ensurePlaceGoogleEnrichment(
+    userId: string,
+    item: ItemEntity,
+  ): Promise<ItemEntity> {
+    if (!this.needsPlaceGoogleEnrichment(item)) {
+      return this.withResolvedPlaceCover(item);
+    }
+
+    const googlePlaceId = item.location?.googlePlaceId;
+    if (!googlePlaceId) return item;
+
+    try {
+      const details =
+        await this.placesService.getGooglePlaceDetails(googlePlaceId);
+      if (!details) {
+        // Mark enriched so we don't retry forever on missing details.
+        return this.persistPlaceEnrichment(item, {
+          enrichedAt: new Date().toISOString(),
+        });
+      }
+
+      let coverPhotoKey: string | undefined;
+      const firstPhoto = details.photos?.[0];
+      if (firstPhoto?.name) {
+        const photo = await this.placesService.fetchPlacePhoto(
+          firstPhoto.name,
+          800,
+        );
+        if (photo) {
+          const extension = photo.contentType.includes('png')
+            ? 'png'
+            : photo.contentType.includes('webp')
+              ? 'webp'
+              : 'jpg';
+          coverPhotoKey = this.s3Service.placeCoverKey(item.ownerId, extension);
+          await this.s3Service.putObjectBuffer(
+            coverPhotoKey,
+            photo.buffer,
+            photo.contentType,
+          );
+        }
+      }
+
+      let tipsEn: string | undefined;
+      let tipsEs: string | undefined;
+      const reviewTexts = (details.reviews ?? [])
+        .map((review) => review.text.trim())
+        .filter(Boolean)
+        .slice(0, 5);
+      if (reviewTexts.length) {
+        try {
+          const tips = await this.openai.summarizePlaceReviews({
+            name: item.name,
+            reviews: reviewTexts,
+          });
+          tipsEn = tips.tipsEn;
+          tipsEs = tips.tipsEs;
+        } catch (error) {
+          this.logger.warn(
+            `Place tips skipped for ${item.id}: ${
+              error instanceof Error ? error.message : error
+            }`,
+          );
+        }
+      }
+
+      return this.persistPlaceEnrichment(item, {
+        googleRating: details.rating,
+        googleUserRatingCount: details.userRatingCount,
+        coverPhotoKey,
+        tipsEn,
+        tipsEs,
+        enrichedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Place Google enrichment skipped for ${item.id}: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      return item;
+    }
+  }
+
+  private async persistPlaceEnrichment(
+    item: ItemEntity,
+    place: PlaceDetails,
+  ): Promise<ItemEntity> {
+    const merged: PlaceDetails = {
+      ...item.place,
+      ...place,
+    };
+    // Avoid writing ephemeral signed URL into Mongo.
+    delete merged.coverPhotoUrl;
+
+    await this.itemModel
+      .updateOne({ _id: item.id }, { $set: { place: merged } })
+      .exec();
+
+    return this.withResolvedPlaceCover({ ...item, place: merged });
   }
 
   private needsPlaceLocalization(item: ItemEntity): boolean {

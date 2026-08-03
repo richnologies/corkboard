@@ -23,7 +23,7 @@
         [color]="activeStatus() === status ? 'primary' : undefined"
         (click)="setStatus(status)"
       >
-        {{ 'status.' + status | translate }}
+        {{ 'statusWine.' + status | translate }}
       </ion-chip>
     }
   </div>
@@ -52,63 +52,90 @@
       <ion-button (click)="addItem()">{{ 'wines.addWine' | translate }}</ion-button>
     </div>
   } @else {
-    @for (item of items(); track item.id) {
-      <ion-card class="item-card" button (click)="openItem(item.id)">
-        <ion-card-content>
-          <div class="card-top">
-            <div class="icon-wrap">
-              @if (item.wine?.imageUrl; as imageUrl) {
-                <img class="wine-thumb" [src]="imageUrl" [alt]="displayName(item)" />
-              } @else {
-                <ion-icon [name]="categoryIcons[item.category]" />
-              }
-            </div>
-            <div class="card-meta">
-              <div class="name-row">
-                <h2>{{ displayName(item) }}</h2>
-                @if (isFavorite(item)) {
-                  <ion-icon name="heart" class="favorite-heart" [attr.aria-label]="'tag.favorite' | translate" />
-                }
+    <ion-list lines="none" class="item-list">
+      @for (item of items(); track item.id) {
+        <ion-item-sliding>
+          <ion-item
+            button
+            detail="false"
+            class="list-card-item"
+            (click)="openItem(item.id)"
+          >
+            <div class="list-card-body">
+              <div class="card-top">
+                <div class="icon-wrap wine">
+                  @if (item.wine?.imageUrl; as imageUrl) {
+                    <img class="wine-thumb" [src]="imageUrl" [alt]="displayName(item)" />
+                  } @else {
+                    <ion-icon [name]="categoryIcons[item.category]" />
+                  }
+                </div>
+                <div class="card-meta">
+                  <div class="name-row">
+                    <h2>{{ displayName(item) }}</h2>
+                    @if (isFavorite(item)) {
+                      <ion-icon name="heart" class="favorite-heart" [attr.aria-label]="'tag.favorite' | translate" />
+                    }
+                  </div>
+                  <p class="category">{{ 'category.' + item.category | translate }}</p>
+                </div>
+                <span class="status-pill" [class]="item.status">{{ 'statusWine.' + item.status | translate }}</span>
               </div>
-              <p class="category">{{ 'category.' + item.category | translate }}</p>
-            </div>
-            <span class="status-pill" [class]="item.status">{{ 'status.' + item.status | translate }}</span>
-          </div>
-          @if (hasLatestVisit(item)) {
-            <div class="last-visit">
-              <ion-icon name="calendar-outline" />
-              <span class="visit-date">
-                {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
-              </span>
-              @if (latestVisitScore(item); as score) {
-                <span class="visit-score">{{ score.toFixed(1) }}/10</span>
+              @if (hasLatestVisit(item)) {
+                <div class="last-visit">
+                  <ion-icon name="calendar-outline" />
+                  <span class="visit-date">
+                    {{ item.latestVisit!.visitedAt | date: 'mediumDate' : '' : i18n.angularLocale() }}
+                  </span>
+                  @if (latestVisitScore(item); as score) {
+                    <span class="visit-score" [attr.aria-label]="starsLabel(score)">{{ starsText(score) }}</span>
+                  }
+                  @if (latestVisitNotes(item); as notes) {
+                    <span class="visit-notes">{{ notes }}</span>
+                  }
+                </div>
               }
-              @if (latestVisitNotes(item); as notes) {
-                <span class="visit-notes">{{ notes }}</span>
+              @if (wineMetaLine(item); as meta) {
+                <p class="wine-meta">
+                  {{ meta }}
+                  @if (item.wine?.rating != null) {
+                    · {{ item.wine!.rating | number: '1.1-1' }}/5
+                  }
+                </p>
               }
-            </div>
-          }
-          @if (wineMetaLine(item); as meta) {
-            <p class="wine-meta">
-              {{ meta }}
-              @if (item.wine?.rating != null) {
-                · {{ item.wine!.rating | number: '1.1-1' }}/5
+              @if (item.source?.referrerName) {
+                <p class="source">{{ 'wines.via' | translate }} {{ item.source?.referrerName }}</p>
               }
-            </p>
-          }
-          @if (item.source?.referrerName) {
-            <p class="source">{{ 'wines.via' | translate }} {{ item.source?.referrerName }}</p>
-          }
-          @if (displayTags(item).length) {
-            <div class="tags">
-              @for (tag of displayTags(item); track tag) {
-                <ion-chip class="tag-chip">{{ tag }}</ion-chip>
+              @if (displayTags(item).length) {
+                <div class="tags">
+                  @for (tag of displayTags(item); track tag) {
+                    <ion-chip class="tag-chip">{{ tag }}</ion-chip>
+                  }
+                </div>
               }
             </div>
-          }
-        </ion-card-content>
-      </ion-card>
-    }
+          </ion-item>
+          <ion-item-options side="end">
+            <ion-item-option
+              color="primary"
+              (click)="logVisit(item)"
+              [attr.aria-label]="'item.logTasting' | translate"
+            >
+              <ion-icon slot="icon-only" name="add-circle-outline" />
+            </ion-item-option>
+            @if (canDeleteItem(item)) {
+              <ion-item-option
+                color="danger"
+                (click)="confirmDeleteItem(item)"
+                [attr.aria-label]="'item.deleteWine' | translate"
+              >
+                <ion-icon slot="icon-only" name="trash-outline" />
+              </ion-item-option>
+            }
+          </ion-item-options>
+        </ion-item-sliding>
+      }
+    </ion-list>
   }
 
   <ion-fab slot="fixed" vertical="bottom" horizontal="end">

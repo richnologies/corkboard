@@ -23,9 +23,7 @@
   </ion-refresher>
 
   @if (loading()) {
-    <div class="loading-wrap">
-      <ion-spinner name="crescent" />
-    </div>
+    <div class="loading-center"><ion-spinner /></div>
   } @else {
     <section class="calendar-card">
       <div class="weekday-row">
@@ -67,10 +65,13 @@
       }
 
       @if (!selectedVisits().length) {
-        <p class="empty-day">{{ 'calendar.noVisitsDay' | translate }}</p>
+        <div class="empty-state compact">
+          <ion-icon name="calendar-outline" />
+          <h3>{{ 'calendar.noVisitsDay' | translate }}</h3>
+        </div>
       } @else {
         @for (visit of selectedVisits(); track visit.id) {
-          <ion-card class="visit-card" button (click)="openPlace(visit.itemId)">
+          <ion-card class="item-card compact" button (click)="openPlace(visit.itemId)">
             <ion-card-content>
               <div class="visit-header">
                 <div class="visit-title">
@@ -78,7 +79,7 @@
                   <h3>{{ visit.itemName }}</h3>
                 </div>
                 @if (visit.rating?.overall != null) {
-                  <span class="score">{{ visit.rating!.overall }}/10</span>
+                  <span class="score" [attr.aria-label]="starsLabel(visit.rating!.overall)">{{ starsText(visit.rating!.overall) }}</span>
                 }
               </div>
 
